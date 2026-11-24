@@ -14,13 +14,22 @@ class StudySession(models.Model):
         PAUSED = "PAUSED", "휴식 중"
         ENDED = "ENDED", "종료"
 
+    class Mode(models.TextChoices):
+        MANUAL = "MANUAL", "수동 타이머"   # 버튼·heartbeat 기준. AI가 확인한 시간이 아님
+        AI = "AI", "AI 착석 추정"        # 카메라 관측 기준
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="study_sessions")
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.ACTIVE)
+    mode = models.CharField(max_length=10, choices=Mode.choices, default=Mode.MANUAL)
+    roi = models.JSONField(null=True, blank=True, help_text="AI 모드 착석 영역 [x1, y1, x2, y2] (0~1). 비우면 화면 전체")
     started_at = models.DateTimeField(default=timezone.now)
     ended_at = models.DateTimeField(null=True, blank=True)
-    last_seen_at = models.DateTimeField(null=True, blank=True, help_text="마지막 heartbeat. 끊긴 뒤 시간은 UNKNOWN으로 정산")
-    last_present_at = models.DateTimeField(null=True, blank=True, help_text="집중 모드: 카메라에 사람이 마지막으로 보인 시각")
+    last_seen_at = models.DateTimeField(null=True, blank=True, help_text="수동 모드: 마지막 heartbeat. 끊긴 뒤 시간은 UNKNOWN으로 정산")
+    last_seq = models.BigIntegerField(default=0, help_text="AI 모드: 마지막으로 반영한 프레임 번호 (중복·역순 무시)")
+    last_observed_at = models.DateTimeField(null=True, blank=True, help_text="AI 모드: 마지막 유효 관측(사람 있음/없음이 분명한 프레임) 시각")
+    presence_since = models.DateTimeField(null=True, blank=True, help_text="AI 모드: 복귀 후보 시작 시각")
+    absent_since = models.DateTimeField(null=True, blank=True, help_text="AI 모드: 부재 후보 시작 시각")
     phone_since = models.DateTimeField(null=True, blank=True, help_text="집중 모드: 휴대폰이 연속으로 보이기 시작한 시각")
 
     class Meta:

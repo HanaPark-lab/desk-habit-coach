@@ -34,12 +34,14 @@ def predict_video(path):
     return body
 
 
-def predict_frame(image_bytes):
-    """집중 모드 프레임 1장 → FastAPI /predict/frame 결과 (persons, phones). 저장하지 않음."""
+def predict_frame(image_bytes, roi=None):
+    """집중 모드 프레임 1장 → FastAPI /predict/frame 결과 (persons, phones, presence_candidate…). 저장하지 않음."""
+    data = {"roi": ",".join(str(v) for v in roi)} if roi else {}
     try:
         r = requests.post(
             f"{settings.FASTAPI_URL}/predict/frame",
             files={"frame": ("frame.jpg", image_bytes, "image/jpeg")},
+            data=data,
             timeout=(2, 10),
         )
     except requests.Timeout:

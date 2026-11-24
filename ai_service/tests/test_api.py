@@ -95,6 +95,27 @@ def test_frame_people_and_phone_fields(client):
     assert all(0 <= v <= 1 for v in body["persons"][0]["box"]) and isinstance(body["phones"], list)
 
 
+def test_presence_rules():
+    from routers.predictions import presence
+    good = [[0.5, 0.2, 0.9]] * 17
+    blurry = [[0.5, 0.2, 0.1]] * 17
+    me = {"box": [0.3, 0.1, 0.7, 0.9], "keypoints": good}
+    side = {"box": [0.85, 0.1, 0.99, 0.9], "keypoints": good}  # 중심이 ROI 밖
+    roi = (0.1, 0.0, 0.8, 1.0)
+    assert presence([me, side], roi) == {"track_count": 1, "quality_passed": True, "presence_candidate": True}
+    assert presence([], roi) == {"track_count": 0, "quality_passed": True, "presence_candidate": False}  # 분명히 없음
+    assert presence([me, {**me, "box": [0.2, 0.1, 0.6, 0.9]}], roi)["presence_candidate"] is False     # 다중 인물
+    assert presence([{**me, "keypoints": blurry}], roi)["quality_passed"] is False                     # 가림·흐림
+
+
+def test_frame_roi_param(client):
+    ok, jpg = cv2.imencode(".jpg", PEOPLE_IMG)
+    send = lambda roi: client.post("/predict/frame", files={"frame": ("f.jpg", jpg.tobytes(), "image/jpeg")}, data={"roi": roi})
+    body = send("0,0,1,1").json()
+    assert body["track_count"] >= 2 and body["presence_candidate"] is False  # bus.jpg: 여러 명
+    assert send("0.9,0,0.1,1").status_code == 422
+
+
 def test_frame_invalid_image(client):
     r = client.post("/predict/frame", files={"frame": ("f.jpg", b"not an image", "image/jpeg")})
     assert r.status_code == 422 and r.json()["detail"]["error_code"] == "INVALID_FRAME"

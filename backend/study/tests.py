@@ -98,55 +98,164 @@ class TimeEngineTests(TestCase):
         self.assertEqual(te.day_seconds(self.user, (night + timedelta(hours=1)).date())["STUDY"], 1800)
 
 
-class FocusModeTests(TestCase):  # S02: 자리 비움·복귀 자동 전환, 휴대폰 지속 감지
+def sec(seconds):
+    return mock.patch("django.utils.timezone.now", return_value=T0 + timedelta(seconds=seconds))
+
+
+PRESENT_FRAME = {"persons": [{"track_id": 1, "box": [0.3, 0.2, 0.7, 0.9], "keypoints": []}], "phones": [],
+                 "presence_candidate": True, "quality_passed": True, "track_count": 1}
+
+
+class AiModeTests(TestCase):  # S01~S04: AI 착석 추정 상태 전환
     def setUp(self):
         self.user = User.objects.create_user("fox", password="unused-pass-7")
-        with at(0):
-            self.s = te.start(self.user)
+        with sec(0):
+            self.s = te.start(self.user, te.Mode.AI)
+        self.seq = 0
 
-    def see(self, minutes, present=True, phone=None):
-        with at(minutes):
-            return te.observe(self.s, present, phone)
+    def see(self, seconds, kind=te.PRESENT, phone=None, seq=None):
+        self.seq += 1
+        with sec(seconds):
+            return te.observe(self.s, seq or self.seq, kind, phone)
+
+    def see_each(self, a, b, kind=te.PRESENT):
+        for t in range(a, b + 1):
+            self.see(t, kind)
 
     def states(self):
         return [(i.state, i.source) for i in self.s.intervals.all()]
 
-    def test_away_after_5s_then_back(self):
-        self.see(0.5)                      # 30초에 보임
-        self.see(0.55, present=False)      # 3초 뒤 안 보임 → 아직 공부
-        self.assertEqual(self.states(), [("STUDY", "MANUAL")])
-        self.see(0.7, present=False)       # 12초째 안 보임 → 30초 시점부터 자리 비움
-        self.see(1.0)                      # 다시 보임 → 공부
-        self.assertEqual(self.states(), [("STUDY", "MANUAL"), ("AWAY", "AUTO"), ("STUDY", "AUTO")])
-        with at(1.0):
-            totals = te.seconds_by_state(self.s.intervals.all())
-        self.assertEqual((totals["STUDY"], totals["AWAY"]), (30, 30))
+    def totals(self, seconds):
+        self.s.refresh_from_db()
+        with sec(seconds):
+            return te.seconds_by_state(self.s.intervals.all())
+
+    def test_starts_unknown_and_needs_3s_stable_presence(self):
+        self.assertEqual(self.states(), [("UNKNOWN", "AUTO")])
+        self.see_each(1, 3)
+        self.assertEqual(self.states()[-1][0], "UNKNOWN")   # 2초 → 아직
+        self.see(4)                                        # 3초 안정 → 1초 시점부터 STUDY
+        self.assertEqual(self.states(), [("UNKNOWN", "AUTO"), ("STUDY", "AUTO")])
+        self.assertEqual(self.s.intervals.last().started_at, T0 + timedelta(seconds=1))
+
+    def test_away_after_5s_absence_then_back(self):
+        self.see_each(1, 9)
+        self.see_each(10, 14, te.ABSENT)
+        self.assertEqual(self.states()[-1][0], "STUDY")    # 부재 4초 → 아직 공부
+        self.see(15, te.ABSENT)                            # 5초 → 10초 시점부터 AWAY
+        self.see_each(16, 18)
+        self.assertEqual(self.states()[-1][0], "AWAY")     # 복귀 2초 → 아직
+        self.see(19)                                       # 3초 → 16초 시점부터 STUDY
+        self.assertEqual([s for s, _ in self.states()], ["UNKNOWN", "STUDY", "AWAY", "STUDY"])
+        t = self.totals(19)
+        self.assertEqual((t["UNKNOWN"], t["STUDY"], t["AWAY"]), (1, 12, 6))
+        self.assertEqual(sum(t.values()), 19)  # 겹침 없음, 합계 = 경과 시간
+
+    def test_unclear_frames_and_disconnect_become_unknown(self):
+        self.see_each(1, 4)                     # STUDY (1초~)
+        self.see_each(5, 12, te.UNCLEAR)        # 가림·다중 인물: 유효 관측 아님 → 4초 + 5초 지나면 UNKNOWN
+        self.assertEqual([s for s, _ in self.states()], ["UNKNOWN", "STUDY", "UNKNOWN"])
+        self.see_each(13, 16)                   # 다시 STUDY (13초~)
+        self.s.refresh_from_db()
+        with sec(30):                           # 프레임이 끊김 → 상태 API·집계 모두 16초부터 UNKNOWN
+            self.assertEqual(te.current_state(self.s), ("UNKNOWN", T0 + timedelta(seconds=16)))
+        t = self.totals(30)
+        self.assertEqual((t["STUDY"], t["UNKNOWN"], sum(t.values())), (6, 24, 30))
+
+    def test_heartbeat_does_not_restore_study(self):
+        self.see_each(1, 4)
+        with sec(20):
+            te.heartbeat(self.s)
+        self.assertEqual([s for s, _ in self.states()], ["UNKNOWN", "STUDY", "UNKNOWN"])
+
+    def test_duplicate_and_old_frames_ignored(self):
+        self.assertFalse(self.see(1, seq=5)[2])
+        self.assertTrue(self.see(2, te.ABSENT, seq=5)[2])  # 같은 번호
+        self.assertTrue(self.see(3, te.ABSENT, seq=4)[2])  # 역순
+        self.s.refresh_from_db()
+        self.assertEqual((self.s.last_seq, self.s.absent_since), (5, None))
+
+    def test_break_is_manual_and_resume_enters_unknown(self):
+        self.see_each(1, 4)
+        with sec(5):
+            te.pause(self.s)
+        self.see_each(6, 20, te.ABSENT)
+        self.assertEqual(self.states()[-1], ("BREAK", "MANUAL"))
+        with sec(21):
+            te.resume(self.s)
+        self.assertEqual(self.states()[-1], ("UNKNOWN", "AUTO"))
+
+    def test_ended_session_rejects_frames(self):
+        with sec(5):
+            te.end(self.s)
+        with self.assertRaises(te.SessionError):
+            self.see(6)
 
     def test_phone_for_10s_records_one_distraction(self):
-        _, a1 = self.see(0.5, phone=0.8)
-        _, a2 = self.see(0.6, phone=0.8)   # 6초
-        _, a3 = self.see(0.7, phone=0.9)   # 12초 → 1건 + 알림
-        _, a4 = self.see(0.8, phone=0.9)   # 같은 연속 구간 → 추가 기록 없음
-        self.assertEqual((a1, a2, a3, a4), (False, False, True, False))
-        self.see(0.85)                     # 휴대폰 사라짐 → 연속 구간 리셋
+        alerts = [self.see(t, phone=0.8)[1] for t in (30, 36, 42, 48)]
+        self.assertEqual(alerts, [False, False, True, False])  # 12초째 1건, 같은 연속 구간은 추가 없음
+        self.see(51)
         self.assertEqual(BehaviorEvent.objects.filter(event_type="PHONE").count(), 1)
 
-    def test_paused_session_not_changed_by_camera(self):
-        with at(1):
-            te.pause(self.s)
-        self.see(2, present=False)
-        self.assertEqual(self.states()[-1], ("BREAK", "MANUAL"))
 
-    @mock.patch("study.views.predict_frame", return_value={"persons": [{"track_id": 1, "box": [0, 0, 1, 1], "keypoints": []}], "phones": []})
+class ModeSwitchTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("max", password="unused-pass-8")
+
+    def test_manual_and_ai_time_are_separate(self):
+        with sec(0):
+            s = te.start(self.user)
+        with sec(60):
+            te.set_mode(s, te.Mode.AI)                   # 카메라 켬 → 확인 중부터
+        with sec(120):
+            s = te.set_mode(s, te.Mode.MANUAL)
+        self.assertEqual([(i.state, i.source) for i in s.intervals.all()],
+                         [("STUDY", "MANUAL"), ("UNKNOWN", "AUTO"), ("STUDY", "MANUAL")])
+        with sec(180):
+            self.assertEqual(te.study_seconds_by_source(s.intervals.all()), {"MANUAL": 120, "AUTO": 0})
+        with self.assertRaises(te.SessionError):
+            with sec(181):
+                te.observe(s, 1, te.PRESENT)             # 수동 모드는 프레임 반영 안 함
+
+    def test_classify(self):
+        self.assertEqual(te.classify(PRESENT_FRAME), te.PRESENT)
+        self.assertEqual(te.classify({"presence_candidate": False, "quality_passed": True, "track_count": 0}), te.ABSENT)
+        self.assertEqual(te.classify({"presence_candidate": False, "quality_passed": True, "track_count": 2}), te.UNCLEAR)
+        self.assertEqual(te.classify({"presence_candidate": False, "quality_passed": False, "track_count": 1}), te.UNCLEAR)
+
+
+class FramesApiTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("ray", password="unused-pass-9")
+        self.api = APIClient()
+        self.api.force_authenticate(self.user)
+        self.base = f"/api/study/sessions/{self.api.post('/api/study/sessions/', {'mode': 'AI'}, format='json').data['id']}"
+
+    def frame(self, seq=None):
+        data = {"frame": SimpleUploadedFile("f.jpg", b"jpg", "image/jpeg")}
+        if seq is not None:
+            data["seq"] = seq
+        return self.api.post(f"{self.base}/frames/", data, format="multipart")
+
+    @mock.patch("study.views.predict_frame", return_value=PRESENT_FRAME)
     def test_frames_api(self, predict):
-        api = APIClient()
-        api.force_authenticate(self.user)
-        r = api.post(f"/api/study/sessions/{self.s.pk}/frames/", {"frame": SimpleUploadedFile("f.jpg", b"jpg", "image/jpeg")}, format="multipart")
-        self.assertEqual((r.status_code, r.data["current_state"], len(r.data["persons"]), r.data["phone_alert"]), (200, "STUDY", 1, False))
-        self.assertEqual(api.post(f"/api/study/sessions/{self.s.pk}/frames/", {}, format="multipart").status_code, 400)
+        r = self.frame(1)
+        self.assertEqual((r.status_code, r.data["mode"], r.data["current_state"], r.data["observation"], r.data["ignored"]),
+                         (200, "AI", "UNKNOWN", "present", False))
+        self.assertTrue(self.frame(1).data["ignored"])
+        self.assertEqual(self.frame().status_code, 400)                      # seq 없음
+        self.assertEqual(self.api.post(f"{self.base}/frames/", {"seq": 2}, format="multipart").status_code, 400)
         predict.side_effect = AnalysisError("AI_UNAVAILABLE", "AI 분석 서버에 연결할 수 없습니다.")
-        r = api.post(f"/api/study/sessions/{self.s.pk}/frames/", {"frame": SimpleUploadedFile("f.jpg", b"jpg", "image/jpeg")}, format="multipart")
-        self.assertEqual(r.status_code, 503)
+        self.assertEqual(self.frame(3).status_code, 503)
+        predict.side_effect = None
+        r = self.api.post(f"{self.base}/mode/", {"mode": "MANUAL"}, format="json")
+        self.assertEqual((r.data["mode"], r.data["current_state"]), ("MANUAL", "STUDY"))
+        self.assertEqual(self.frame(4).status_code, 409)                     # 수동 모드
+        self.assertEqual(self.api.post(f"{self.base}/mode/", {"mode": "AI", "roi": [0.5, 0, 0.2, 1]}, format="json").status_code, 400)
+        r = self.api.post(f"{self.base}/mode/", {"mode": "AI", "roi": [0.1, 0, 0.9, 1]}, format="json")
+        self.assertEqual((r.data["mode"], r.data["roi"]), ("AI", [0.1, 0.0, 0.9, 1.0]))
+        self.frame(5)
+        self.assertEqual(predict.call_args.args[1], [0.1, 0.0, 0.9, 1.0])  # ROI를 FastAPI로 전달
 
 
 @override_settings(EVENT_THRESHOLDS={"DRINK": 0.5, "MOVEMENT": 0.5})

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 
 from services.action_inference import predict_people
 from services.pose_pipeline import VideoError, _lock, track_people
@@ -23,10 +23,41 @@ def _norm_box(box, w, h):
     return [round(float(v) / d, 4) for v, d in zip(box, (w, h, w, h))]  # numpy → float (JSON 변환)
 
 
+def _parse_roi(roi):
+    if not roi:
+        return (0.0, 0.0, 1.0, 1.0)
+    try:
+        x1, y1, x2, y2 = (float(v) for v in roi.split(","))
+    except ValueError:
+        x1 = None
+    if x1 is None or not (0 <= x1 < x2 <= 1 and 0 <= y1 < y2 <= 1):
+        raise HTTPException(422, {"error_code": "INVALID_ROI", "message": "roi는 0~1 사이 x1,y1,x2,y2 입니다."})
+    return x1, y1, x2, y2
+
+
+def presence(persons, roi):
+    """ROI(착석 영역) 안 사람 → 착석 후보 판단. 사람 중심이 ROI 안이면 대상으로 본다.
+
+    quality_passed: ROI 안 모든 사람의 상체 관절(코·양 어깨)이 분명함 (0명이면 '분명히 없음'으로 통과)
+    presence_candidate: ROI 안에 품질 통과한 사람이 정확히 1명
+    """
+    x1, y1, x2, y2 = roi
+    inside = [p for p in persons if x1 <= (p["box"][0] + p["box"][2]) / 2 <= x2 and y1 <= (p["box"][1] + p["box"][3]) / 2 <= y2]
+    clear = [p for p in inside if sum(p["keypoints"][i][2] for i in UPPER_BODY) / len(UPPER_BODY) >= MIN_KEYPOINT_CONF]
+    quality = len(clear) == len(inside)
+    return {"track_count": len(inside), "quality_passed": quality, "presence_candidate": quality and len(inside) == 1}
+
+
+UPPER_BODY = (0, 5, 6)      # 코·왼어깨·오른어깨 (책상 앞 상반신 기준)
+MIN_KEYPOINT_CONF = 0.5
+
+
 @router.post("/predict/frame")
-def predict_frame(request: Request, frame: UploadFile = File(...)):
-    """이미지 1장 → 사람(큰 순서로 track_id 1, 2…)·관절 17개·휴대폰 상자. 좌표는 0~1로 정규화."""
+def predict_frame(request: Request, frame: UploadFile = File(...), roi: str = Form("")):
+    """이미지 1장 → 사람(큰 순서로 번호 1, 2…; 프레임마다 새로 매김, 추적 ID 아님)·관절 17개·휴대폰 상자·착석 후보.
+    좌표는 0~1로 정규화."""
     start = time.perf_counter()
+    region = _parse_roi(roi)
     data = frame.file.read(MAX_FRAME_BYTES + 1)
     if len(data) > MAX_FRAME_BYTES:
         raise HTTPException(413, {"error_code": "TOO_LARGE", "message": "프레임이 너무 큽니다."})
@@ -52,7 +83,8 @@ def predict_frame(request: Request, frame: UploadFile = File(...)):
             })
     phones = [{"box": _norm_box(b, w, h), "confidence": round(float(c), 3)}
               for b, c in zip(det.boxes.xyxy.cpu().numpy(), det.boxes.conf.cpu().numpy())]
-    return {"persons": persons, "phones": phones, "processing_ms": int((time.perf_counter() - start) * 1000)}
+    return {"persons": persons, "phones": phones, **presence(persons, region),
+            "processing_ms": int((time.perf_counter() - start) * 1000)}
 
 
 @router.post("/predict/video")

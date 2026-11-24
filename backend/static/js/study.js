@@ -71,7 +71,13 @@
   $("btn-start").addEventListener("click", async () => {
     breakAlerted = false;
     $("alert").hidden = true;
-    await call("/api/study/sessions/");
+    $("study-error").textContent = "";
+    try {
+      render(await api("/api/study/sessions/", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: stream ? "AI" : "MANUAL" }) }));
+    } catch (x) {
+      $("study-error").textContent = errorText(x);
+    }
     if (session && !stream) toggleCamera();
   });
   $("btn-pause").addEventListener("click", () => call(url("pause")));
@@ -83,6 +89,11 @@
   const overlay = $("overlay");
   const grab = document.createElement("canvas");
 
+  // 카메라 켜기 = AI 착석 추정 모드, 끄기 = 수동 타이머 모드 (서버에 모드 전환 요청)
+  const setMode = (mode) => session && session.status !== "ENDED" &&
+    api(url("mode"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode }) })
+      .then(render).catch((x) => ($("study-error").textContent = errorText(x)));
+
   async function toggleCamera() {
     if (stream) {
       stream.getTracks().forEach((t) => t.stop());
@@ -91,6 +102,7 @@
       $("live-empty").hidden = false;
       $("btn-camera").textContent = "카메라 켜기";
       overlay.getContext("2d").clearRect(0, 0, overlay.width, overlay.height);
+      await setMode("MANUAL");
       return;
     }
     try {
@@ -99,6 +111,7 @@
       video.hidden = $("live-badge").hidden = false;
       $("live-empty").hidden = true;
       $("btn-camera").textContent = "카메라 끄기";
+      await setMode("AI");
     } catch {
       $("study-error").textContent = "카메라를 사용할 수 없습니다. 브라우저 권한을 확인해 주세요.";
     }
@@ -144,8 +157,9 @@
   }
 
   async function sendFrame() {
-    if (!stream || !session || session.status !== "ACTIVE" || busy || video.readyState < 2) return;
+    if (!stream || !session || session.mode !== "AI" || session.status !== "ACTIVE" || busy || video.readyState < 2) return;
     busy = true; // 한 번에 한 요청만
+    const sentFor = session.id;
     try {
       grab.width = 640;
       grab.height = Math.round((640 * video.videoHeight) / video.videoWidth) || 480;
@@ -153,10 +167,12 @@
       const blob = await new Promise((r) => grab.toBlob(r, "image/jpeg", 0.7));
       const form = new FormData();
       form.append("frame", blob, "frame.jpg");
+      form.append("seq", String(Date.now())); // 증가하는 프레임 번호 (새로고침해도 줄지 않음)
       const data = await api(url("frames"), { method: "POST", body: form });
+      if (data.ignored || !session || session.id !== sentFor || !stream) return; // 늦은 응답이 바뀐 세션을 덮지 않게
       render(data);
       draw(data.persons, data.phones);
-      $("live-status").textContent = data.persons.length ? "" : "· 사람이 보이지 않아요";
+      $("live-status").textContent = { present: "", absent: "· 자리에 사람이 보이지 않아요", unclear: "· 확인 어려움 (가림·여러 명·흐림)" }[data.observation] ?? "";
       if (data.phone_alert) showAlert("잠깐, 다시 집중해 볼까요?", "휴대폰 사용으로 추정되는 행동이 일정 시간 지속되었어요.");
     } catch (x) {
       $("live-status").textContent = `· ${errorText(x, "분석 서버 연결 실패")}`;
@@ -166,12 +182,14 @@
   }
   setInterval(sendFrame, FRAME_MS);
 
-  // 카메라가 꺼져 있을 때만 연결 신호 (켜져 있으면 프레임이 신호 역할)
+  // 카메라가 꺼져 있을 때만 연결 신호 (켜져 있으면 프레임이 신호 역할). AI 모드에서는 공부 시간을 복구하지 않음
   setInterval(() => {
     if (session && !stream && document.visibilityState === "visible") call(url("heartbeat"));
   }, HEARTBEAT_MS);
 
   const openId = JSON.parse($("open-session").textContent);
-  if (openId) call(`/api/study/sessions/${openId}/heartbeat/`);
-  else render(null);
+  if (openId) {
+    // 새로고침하면 카메라가 꺼진 상태 → AI 모드였으면 수동 모드로 맞춤 (꺼진 카메라로 착석을 추정하지 않음)
+    call(`/api/study/sessions/${openId}/heartbeat/`).then(() => session && session.mode === "AI" && !stream && setMode("MANUAL"));
+  } else render(null);
 })();
