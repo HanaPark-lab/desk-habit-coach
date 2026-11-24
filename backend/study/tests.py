@@ -426,14 +426,34 @@ class RealtimeEventTests(TestCase):  # S05·S06: episode당 1건, 중복·NG 보
             te.pause(self.s)
         self.assertIsNone(self.window(10, cands(drink=0.9)))
 
+    def test_realtime_decision_explains_policy_without_changing_thresholds(self):
+        def decision(seconds, candidates):
+            return event_service.record_realtime_decision(
+                self.s, candidates, "service", "rf-test", T0 + timedelta(seconds=seconds),
+            )
+
+        first = decision(10, cands(drink=0.9, other=0.1))
+        self.assertEqual((first.reason, first.score, first.threshold), ("recorded", 0.9, 0.5))
+        self.assertEqual(decision(11, cands(drink=0.8)).reason, "same_episode")
+        self.assertEqual(decision(12, cands(other=0.7, drink=0.3)).reason, "other")
+        self.assertEqual(decision(13, cands(drink=0.8)).reason, "cooldown")
+        self.assertEqual(decision(14, cands(wave=0.4, drink=0.35, other=0.25)).reason, "below_threshold")
+        self.assertEqual(BehaviorEvent.objects.count(), 1)
+
+    @override_settings(REALTIME_DEBUG=True)
     @mock.patch("study.views.drop_stream")
     @mock.patch("study.views.predict_frame", return_value={**PRESENT_FRAME, "action_candidates": cands(drink=0.9), "buffer_steps": 30,
-                                                          "model_profile": "service", "model_version": "rf-test"})
+                                                          "model_profile": "service", "model_version": "rf-test",
+                                                          "valid_pose_frames": 26, "buffer_status": "window"})
     def test_frames_api_records_realtime_event(self, predict, drop):
         api = APIClient()
         api.force_authenticate(self.user)
         base = f"/api/study/sessions/{self.s.pk}"
-        r = api.post(f"{base}/frames/", {"frame": SimpleUploadedFile("f.jpg", b"jpg", "image/jpeg"), "seq": 7}, format="multipart")
+        with self.assertLogs("study.views", level="INFO") as logs:
+            r = api.post(f"{base}/frames/", {"frame": SimpleUploadedFile("f.jpg", b"jpg", "image/jpeg"), "seq": 7}, format="multipart")
+        for field in ("model=rf-test", "'wave': 0.0", "prediction=drink_return", "applied=0.5",
+                      "valid_pose_frames=26", "state=UNKNOWN", "decision=recorded"):
+            self.assertIn(field, logs.output[0])
         self.assertEqual((r.status_code, r.data["recorded_event"], r.data["buffer_steps"]), (200, "DRINK", 30))
         self.assertEqual(predict.call_args.args[2:], (str(self.s.pk), 7, False))   # stream_key·seq·휴대폰 감지 OFF
         r = api.post(f"{base}/frames/", {"frame": SimpleUploadedFile("f.jpg", b"jpg", "image/jpeg"), "seq": 6}, format="multipart")

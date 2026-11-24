@@ -6,6 +6,7 @@
 - 클립과 실시간이 같은 행동을 COOLDOWN 안에 기록하면 먼저 기록된 1건만 남긴다.
 """
 from datetime import datetime, timedelta
+from typing import NamedTuple
 
 from django.conf import settings
 from django.db import transaction
@@ -55,34 +56,56 @@ def record_from_job(job, predictions):
     return event
 
 
-def record_realtime(session, candidates, profile, model_version, at):
-    """실시간 Window 1개의 결과(action_candidates) 반영. 새로 기록하면 BehaviorEvent, 아니면 None.
+class RealtimeDecision(NamedTuple):
+    event: BehaviorEvent | None
+    reason: str
+    score: float | None = None
+    threshold: float | None = None
 
-    candidates는 착석 대상 1명·품질 통과 프레임만으로 만든 Window의 결과다 (FastAPI 버퍼 규칙).
-    """
-    if not candidates or not records_habits(profile):
-        return None
+
+def record_realtime(session, candidates, profile, model_version, at):
+    return record_realtime_decision(session, candidates, profile, model_version, at).event
+
+
+def record_realtime_decision(session, candidates, profile, model_version, at):
+    """Apply existing event policy and report why the window did or did not produce a record."""
+    if not candidates:
+        return RealtimeDecision(None, "no_window")
+    if not records_habits(profile):
+        return RealtimeDecision(None, "unsupported_profile")
     probs = {c["label"]: c["probability"] for c in candidates}
     event_type, score = top_event(probs, profile)
-    hit = candidates[0]["label"] != OTHER_LABEL and score >= settings.EVENT_THRESHOLDS[event_type]
-    label = event_label(probs, event_type, profile) if hit else ""
+    threshold = settings.EVENT_THRESHOLDS[event_type]
+    if candidates[0]["label"] == OTHER_LABEL:
+        reason = "other"
+    elif score < threshold:
+        reason = "below_threshold"
+    else:
+        reason = "candidate"
+    label = event_label(probs, event_type, profile) if reason == "candidate" else ""
     with transaction.atomic():
         s = StudySession.objects.select_for_update().get(pk=session.pk)
         if s.status != StudySession.Status.ACTIVE:
-            return None
+            return RealtimeDecision(None, "inactive_session", score, threshold)
         state = dict(s.realtime_state or {})
         recorded = None
-        if label and state.get("episode") != label:  # 새 episode 시작
+        if label:
             last = state.get("last", {}).get(label)
-            cooled = not last or at - datetime.fromisoformat(last) >= COOLDOWN
-            if cooled and not _duplicate_nearby(s.user, event_type, label, at, [Source.CLIP, Source.REALTIME]):
+            if state.get("episode") == label:
+                reason = "same_episode"
+            elif last and at - datetime.fromisoformat(last) < COOLDOWN:
+                reason = "cooldown"
+            elif _duplicate_nearby(s.user, event_type, label, at, [Source.CLIP, Source.REALTIME]):
+                reason = "duplicate_nearby"
+            else:
                 recorded = BehaviorEvent.objects.create(
                     user=s.user, session=s, action_label=label,
                     event_type=event_type, confidence=round(score, 4), occurred_at=at, source=Source.REALTIME,
                     model_version=model_version, dedup_key=f"rt:{s.pk}:{label}:{at.isoformat()}",
                 )
                 state.setdefault("last", {})[label] = at.isoformat()
+                reason = "recorded"
         state["episode"] = label
         s.realtime_state = state
         s.save(update_fields=["realtime_state"])
-    return recorded
+    return RealtimeDecision(recorded, reason, score, threshold)

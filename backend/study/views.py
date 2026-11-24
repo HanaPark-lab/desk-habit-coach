@@ -1,4 +1,7 @@
 """공부 세션 API (API_SPECIFICATION.md). 모두 로그인 필요, 본인 것만."""
+import logging
+
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.utils import timezone
@@ -12,6 +15,7 @@ from .models import BehaviorEvent, StudySession
 from .serializers import BehaviorEventSerializer, StudySessionSerializer
 from .services import event_service, time_engine
 
+logger = logging.getLogger(__name__)
 MAX_FRAME_BYTES = 2 * 1024 * 1024
 
 
@@ -104,19 +108,30 @@ class StudySessionViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, view
             phone = max((p["confidence"] for p in result["phones"]), default=None)
             kind = time_engine.classify(result)
             session, alert, ignored = time_engine.observe(session, seq, kind, phone)
-            recorded = None
-            if not ignored and result.get("action_candidates"):
-                recorded = event_service.record_realtime(session, result["action_candidates"], result.get("model_profile"),
-                                                         result.get("model_version", ""), timezone.now())
+            candidates = result.get("action_candidates", [])
+            decision = event_service.RealtimeDecision(None, "ignored_frame" if ignored else "no_window")
+            if not ignored and candidates:
+                decision = event_service.record_realtime_decision(
+                    session, candidates, result.get("model_profile"), result.get("model_version", ""), timezone.now(),
+                )
         except AnalysisError as e:
             return Response({"detail": e.message, "error_code": e.code}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         except time_engine.SessionError as e:
             return Response({"detail": e.message}, status=e.status)
         data = self.get_serializer(self.get_queryset().get(pk=session.pk)).data
+        if settings.REALTIME_DEBUG:
+            logger.info(
+                "realtime model=%s seq=%s probabilities=%s prediction=%s thresholds=%s applied=%s score=%s "
+                "valid_pose_frames=%s buffer_steps=%s buffer_status=%s observation=%s state=%s decision=%s recorded_label=%s",
+                result.get("model_version"), seq, {c["label"]: c["probability"] for c in candidates},
+                candidates[0]["label"] if candidates else None, settings.EVENT_THRESHOLDS, decision.threshold, decision.score,
+                result.get("valid_pose_frames"), result.get("buffer_steps"), result.get("buffer_status"), kind,
+                data["current_state"], decision.reason, decision.event.action_label if decision.event else None,
+            )
         return Response({**data, "persons": result["persons"], "phones": result["phones"], "phone_alert": alert,
                          "observation": kind, "ignored": ignored,
                          "action_candidates": result.get("action_candidates", []), "buffer_steps": result.get("buffer_steps", 0),
-                         "recorded_event": recorded.event_type if recorded else ""})
+                         "recorded_event": decision.event.event_type if decision.event else ""})
 
     @action(detail=True, methods=["get"])
     def events(self, request, pk=None):
