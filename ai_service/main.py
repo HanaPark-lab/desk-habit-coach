@@ -13,13 +13,14 @@ from routers.predictions import router as predictions_router
 from services.model_loader import load_bundle
 
 MODEL_DIR = Path(os.getenv("MODEL_DIR", Path(__file__).resolve().parent / "models"))
+MODEL_PROFILE = os.getenv("MODEL_PROFILE", "service")  # service(자체 4종) | course(교과 6종)
 POSE_WEIGHTS = os.getenv("POSE_WEIGHTS", str(MODEL_DIR / "yolo11n-pose.pt"))
 DETECT_WEIGHTS = os.getenv("DETECT_WEIGHTS", str(MODEL_DIR / "yolo11n.pt"))  # 집중 모드 휴대폰 감지 (COCO)
 
 
 @asynccontextmanager
 async def lifespan(app):
-    app.state.bundle = load_bundle(MODEL_DIR)  # 서버 시작 시 1번만 로드, 요청마다 재사용
+    app.state.bundle = load_bundle(MODEL_DIR, MODEL_PROFILE)  # 서버 시작 시 1번만 로드, 요청마다 재사용
     app.state.pose = YOLO(POSE_WEIGHTS)
     app.state.detector = YOLO(DETECT_WEIGHTS)
     yield
@@ -35,6 +36,7 @@ def health():
     return {
         "status": "ok",
         "model_loaded": b is not None,
+        "model_profile": b.profile if b else None,
         "model_version": b.version if b else None,
         "classes": b.classes if b else [],
         "feature_count": int(b.model.n_features_in_) if b else 0,

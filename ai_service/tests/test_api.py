@@ -1,4 +1,4 @@
-"""FastAPI 단독 검증 (가이드 2단계). models/에 가짜 또는 진짜 모델이 있어야 한다.
+"""FastAPI 단독 검증 (가이드 2단계). models/service/에 서비스 모델이 있어야 한다.
 
 실행 (ai_service 폴더에서):  ../.venv/bin/python -m pytest tests -q
 """
@@ -51,16 +51,28 @@ def test_active_windows_drops_idle():
     assert active_windows(np.stack([still, still])).shape == (2, 1140)          # 전부 정지면 모두 유지
 
 
+def test_model_profiles():
+    from main import MODEL_DIR
+    from services.model_loader import load_bundle
+    assert load_bundle(MODEL_DIR, "service").profile == "service"
+    for profile, msg in (("nope", "알 수 없는"), ("course", "모델 파일이 없습니다")):
+        if profile == "course" and (MODEL_DIR / "course" / "rf_action_baseline.joblib").exists():
+            assert len(load_bundle(MODEL_DIR, "course").classes) == 6  # 교과 모델을 넣은 경우
+            continue
+        with pytest.raises(RuntimeError, match=msg):
+            load_bundle(MODEL_DIR, profile)
+
+
 def test_health(client):
     body = client.get("/health").json()
-    assert body["model_loaded"] and body["feature_count"] == 1140
+    assert body["model_loaded"] and body["feature_count"] == 1140 and body["model_profile"] == "service"
     assert sorted(body["classes"]) == ["drink_return", "other", "walk_turn_walk", "wave"]
 
 
 def test_people_video(client, tmp_path):
     body = post(client, make_video(tmp_path / "people.mp4", 6, PEOPLE_IMG)).json()
     preds = body["predictions"]
-    assert preds and body["error_code"] == ""
+    assert preds and body["error_code"] == "" and body["model_profile"] == "service" and body["model_version"]
     assert [p["track_id"] for p in preds] == list(range(1, len(preds) + 1))
     for p in preds:
         assert p["action_label"] in p["probabilities"] and 0 <= p["confidence"] <= 1 and p["window_count"] >= 1

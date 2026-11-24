@@ -120,5 +120,6 @@ DAILY_GOALS = {  # 오늘 대시보드 목표
     "DRINK": 8,
     "MOVEMENT": 5,
 }
-# 행동 기록 기준값 (training/train_rf.py 보고서의 제안값을 .env에 반영)
+# 행동 기록 기준값 (training/train_rf.py 보고서의 제안값을 .env에 반영).
+# 현재 DRINK 0.56·MOVEMENT 0.64는 학습 데이터 교차검증으로 정한 초기 후보값. 별도 검증 데이터로 확정 필요.
 EVENT_THRESHOLDS = {e: float(os.environ.get(f"EVENT_THRESHOLD_{e}", "0.5")) for e in ("DRINK", "MOVEMENT")}

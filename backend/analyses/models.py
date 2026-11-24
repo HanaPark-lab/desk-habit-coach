@@ -31,6 +31,7 @@ class AnalysisJob(models.Model):
     capture_seconds = models.PositiveSmallIntegerField(default=8)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING, db_index=True)
     celery_task_id = models.CharField(max_length=255, blank=True)
+    model_profile = models.CharField(max_length=20, blank=True, help_text="service(자체 4종) / course(교과 6종)")
     model_version = models.CharField(max_length=50, blank=True)
     error_code = models.CharField(max_length=50, blank=True)
     error_message = models.TextField(blank=True)

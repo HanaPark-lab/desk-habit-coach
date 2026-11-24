@@ -4,7 +4,7 @@ from rest_framework import serializers
 
 from study.models import BehaviorEvent
 
-from .habits import OTHER_LABEL, top_event
+from .habits import OTHER_LABEL, records_habits, top_event
 from .models import AnalysisJob, PersonPrediction
 
 EVENT_NAMES = dict(BehaviorEvent.EventType.choices)
@@ -19,11 +19,11 @@ class PersonPredictionSerializer(serializers.ModelSerializer):
         fields = ["track_id", "action_label", "confidence", "window_count", "probabilities", "event_type", "event_score"]
 
     def get_event_type(self, obj):
-        return "" if obj.action_label == OTHER_LABEL else top_event(obj.probabilities)[0]
+        return "" if obj.action_label == OTHER_LABEL else top_event(obj.probabilities, obj.job.model_profile)[0]
 
     def get_event_score(self, obj):
-        score = obj.confidence if obj.action_label == OTHER_LABEL else top_event(obj.probabilities)[1]
-        return round(score, 4)
+        event, score = top_event(obj.probabilities, obj.job.model_profile)
+        return round(score if event and obj.action_label != OTHER_LABEL else obj.confidence, 4)
 
 
 class AnalysisJobSerializer(serializers.ModelSerializer):
@@ -35,12 +35,12 @@ class AnalysisJobSerializer(serializers.ModelSerializer):
         model = AnalysisJob
         fields = [
             "id", "title", "memo", "input_type", "video_file", "camera_key", "capture_seconds", "session",
-            "status", "status_url", "model_version", "error_code", "error_message", "processing_ms",
+            "status", "status_url", "model_profile", "model_version", "error_code", "error_message", "processing_ms",
             "created_at", "finished_at", "predictions", "record",
         ]
         # 상태·AI 결과·세션 연결은 사용자가 바꿀 수 없음 (서버만 변경)
         read_only_fields = [
-            "id", "session", "status", "model_version", "error_code", "error_message",
+            "id", "session", "status", "model_profile", "model_version", "error_code", "error_message",
             "processing_ms", "created_at", "finished_at",
         ]
         extra_kwargs = {"video_file": {"write_only": True}}  # 서버 내부 저장 경로는 응답에 노출하지 않음
@@ -61,6 +61,8 @@ class AnalysisJobSerializer(serializers.ModelSerializer):
         preds = list(job.predictions.all())
         if not preds:
             reason = job.error_message or "분석할 사람을 찾지 못했습니다."
+        elif not records_habits(job.model_profile):
+            reason = f"{job.model_profile} 모델 결과는 습관 기록에 쓰지 않습니다 (교과 동작 분류 전용)."
         elif all(p.action_label == OTHER_LABEL for p in preds):
             reason = "학습한 행동이 아닌 동작(기타)으로 인식되어 기록하지 않았습니다."
         else:

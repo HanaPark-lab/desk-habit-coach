@@ -4,7 +4,7 @@
 1) 교차검증 두 가지
    - 처음 보는 사람: 한 사람의 영상을 전부 빼고 학습 → 그 사람의 동작 영상 평가
    - 처음 보는 기타 행동: NG 행동 하나(폴더)를 통째로 빼고 학습 → 그 행동이 습관으로 잘못 인정되는지 평가
-2) 모든 영상으로 최종 모델 학습 → ai_service/models/ 의 파일 3개 교체 (FastAPI 재시작하면 적용)
+2) 모든 영상으로 최종 모델 학습 → ai_service/models/service/ 의 파일 3개 교체 (FastAPI 재시작하면 적용)
 3) 교차검증 점수로 습관별 기준값 제안
 결과 요약: docs/TRAINING_REPORT.md
 
@@ -34,7 +34,7 @@ from src.sequence_utils import (  # noqa: E402
 
 RAW = ROOT / "data" / "raw"
 CACHE = ROOT / "out" / "feature_cache"
-OUT = ROOT / "ai_service" / "models"
+OUT = ROOT / "ai_service" / "models" / "service"  # 교과 6종 모델(models/course/)은 건드리지 않음
 REPORT = ROOT / "docs" / "TRAINING_REPORT.md"
 NAME_RE = re.compile(r"^(P\d{2})_(top|bottom)_R\d{2}$", re.IGNORECASE)
 OTHER = "other"  # X### 폴더 전체 = 학습한 습관이 아닌 행동
@@ -96,7 +96,7 @@ def top_habit(proba):
 
 def main():
     clips = find_clips()
-    pose = YOLO(str(OUT / "yolo11n-pose.pt"))
+    pose = YOLO(str(OUT.parent / "yolo11n-pose.pt"))
     start = time.time()
     for i, c in enumerate(clips, 1):
         c["X"] = active_windows(clip_windows(pose, c))  # 쉬는 구간 제외 (추론과 같은 규칙)

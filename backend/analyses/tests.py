@@ -169,6 +169,10 @@ class JudgeTests(SimpleTestCase):
     def test_no_people(self):
         self.assertEqual(judge([], THRESHOLDS), "")
 
+    def test_course_profile_never_records(self):
+        course = person(1, {"A001_a": 0.9, "A002_b": 0.1})
+        self.assertEqual(judge([course, person(2, probs(drink=0.9))], THRESHOLDS, "course"), "")
+
 
 RESULT = {"model_version": "rf-test", "error_code": "", "message": "", "predictions": [person(1, probs(drink=0.8, wave=0.2))]}
 
@@ -192,6 +196,16 @@ class AnalyzeTaskTests(TestCase):
         self.assertEqual(self.job.predictions.count(), 1)
         event = BehaviorEvent.objects.get()
         self.assertEqual((event.event_type, event.job_id, event.session_id), ("DRINK", self.job.pk, self.session.pk))
+
+    @mock.patch("analyses.tasks.predict_video", return_value={**RESULT, "model_profile": "course", "model_version": "course-6"})
+    def test_course_profile_saved_without_event(self, _):
+        self.run_task()
+        self.assertEqual((self.job.status, self.job.model_profile, self.job.model_version), ("SUCCESS", "course", "course-6"))
+        self.assertFalse(BehaviorEvent.objects.exists())
+        self.client.force_login(self.user)
+        data = self.client.get(f"/api/analyses/{self.job.pk}/status/").json()
+        self.assertIn("습관 기록에 쓰지 않습니다", data["record"]["reason"])
+        self.assertEqual(data["predictions"][0]["event_type"], "")
 
     @mock.patch("analyses.tasks.predict_video", side_effect=AnalysisError("AI_UNAVAILABLE", "AI 분석 서버에 연결할 수 없습니다."))
     def test_ai_down_marks_failure(self, _):

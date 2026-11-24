@@ -17,7 +17,7 @@ from .tasks import analyze_job
 logger = logging.getLogger(__name__)
 
 STATUS_FIELDS = (
-    "id", "status", "input_type", "session", "model_version", "error_code",
+    "id", "status", "input_type", "session", "model_profile", "model_version", "error_code",
     "error_message", "processing_ms", "created_at", "finished_at", "predictions", "record",
 )
 

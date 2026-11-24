@@ -49,6 +49,7 @@ def analyze_job(self, job_id):
         )
         _finish(
             job, start, status=Status.SUCCESS,
+            model_profile=result.get("model_profile", ""),
             model_version=result.get("model_version", ""),
             error_code=result.get("error_code", ""),
             error_message=result.get("message", ""),

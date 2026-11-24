@@ -86,6 +86,7 @@ def predict_video(request: Request, file: UploadFile = File(...)):
     else:
         error_code, message = "NO_PERSON", "영상에서 사람을 찾지 못했습니다."
     return {
+        "model_profile": state.bundle.profile,
         "model_version": state.bundle.version,
         "predictions": predictions,
         "error_code": error_code,

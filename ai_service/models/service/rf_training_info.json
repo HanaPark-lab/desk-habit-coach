@@ -1,6 +1,5 @@
 {
   "model_version": "rf-2026-11-24-other",
-  "is_dummy": false,
   "classes": [
     "drink_return",
     "other",
