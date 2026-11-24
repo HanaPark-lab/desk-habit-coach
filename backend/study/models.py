@@ -51,7 +51,8 @@ class StudyInterval(models.Model):
     class State(models.TextChoices):
         STUDY = "STUDY", "공부"
         BREAK = "BREAK", "휴식"
-        AWAY = "AWAY", "자리 비움"
+        AWAY = "AWAY", "자리 비움"             # 15분 넘게 비움 (또는 복귀 확인 없이 끝남)
+        AWAY_PENDING = "AWAY_PENDING", "복귀 확인 중"  # 이탈 중. 복귀 시각에 따라 BREAK/AWAY로 확정
         UNKNOWN = "UNKNOWN", "확인 불가"
 
     class Source(models.TextChoices):
@@ -59,7 +60,7 @@ class StudyInterval(models.Model):
         AUTO = "AUTO", "자동 감지"
 
     session = models.ForeignKey(StudySession, on_delete=models.CASCADE, related_name="intervals")
-    state = models.CharField(max_length=10, choices=State.choices)
+    state = models.CharField(max_length=15, choices=State.choices)
     started_at = models.DateTimeField()
     ended_at = models.DateTimeField(null=True, blank=True)
     source = models.CharField(max_length=10, choices=Source.choices, default=Source.MANUAL)

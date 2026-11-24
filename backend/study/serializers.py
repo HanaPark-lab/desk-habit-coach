@@ -32,6 +32,14 @@ class StudySessionSerializer(serializers.ModelSerializer):
         """현재 구간 시작 시각 (집중 모드의 '현재 집중 세션'·'다음 휴식까지' 계산용)."""
         return current_state(obj)[1]
 
+    def to_representation(self, obj):
+        """기존 필드에 상태별 초를 평평하게 추가 (STUDY+BREAK+AWAY+AWAY_PENDING+UNKNOWN = 경과 시간, 중복 없음)."""
+        data = super().to_representation(obj)
+        s = data["seconds"]
+        data.update(state=data["current_state"], study_seconds=s["STUDY"], break_seconds=s["BREAK"],
+                    away_seconds=s["AWAY"], pending_seconds=s["AWAY_PENDING"], unknown_seconds=s["UNKNOWN"])
+        return data
+
     def get_study_seconds_by_source(self, obj):
         """공부 시간 중 AI 추정(AUTO)과 수동 기록(MANUAL)."""
         return study_seconds_by_source(obj.intervals.all())

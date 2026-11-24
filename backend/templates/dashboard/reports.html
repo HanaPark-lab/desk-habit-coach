@@ -9,14 +9,14 @@
   <h2 id="days-title">일별 시간·행동</h2>
   <div class="table-scroll">
     <table>
-      <thead><tr><th scope="col">날짜</th><th scope="col">순공</th><th scope="col">휴식</th><th scope="col">자리 비움</th><th scope="col">확인 불가</th><th scope="col">음료</th><th scope="col">움직임</th></tr></thead>
+      <thead><tr><th scope="col">날짜</th><th scope="col">순공</th><th scope="col">휴식</th><th scope="col">자리 비움</th><th scope="col">복귀 확인 중</th><th scope="col">확인 불가</th><th scope="col">음료</th><th scope="col">손 흔들기</th><th scope="col">걷기</th></tr></thead>
       <tbody>
       {% for d in days %}
         <tr>
           <td>{{ d.date|date:"m/d (D)" }}</td>
           <td data-sec="{{ d.seconds.STUDY }}"></td><td data-sec="{{ d.seconds.BREAK }}"></td>
-          <td data-sec="{{ d.seconds.AWAY }}"></td><td data-sec="{{ d.seconds.UNKNOWN }}"></td>
-          <td>{{ d.events.DRINK }}</td><td>{{ d.events.MOVEMENT }}</td>
+          <td data-sec="{{ d.seconds.AWAY }}"></td><td data-sec="{{ d.seconds.AWAY_PENDING }}"></td><td data-sec="{{ d.seconds.UNKNOWN }}"></td>
+          <td>{{ d.events.DRINK }}</td><td>{{ d.actions.wave }}</td><td>{{ d.actions.walk_turn_walk }}</td>
         </tr>
       {% endfor %}
       </tbody>

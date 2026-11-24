@@ -2,9 +2,11 @@
 
 두 모드를 구분한다 (수동 기록을 AI가 확인한 시간으로 표시하지 않음).
 - MANUAL: 시작·휴식·재개·종료 버튼. heartbeat가 90초 넘게 없으면 끊긴 뒤 시간은 UNKNOWN.
-- AI    : 카메라 관측. 시작·재개는 UNKNOWN → ROI 안 1명이 3초 안정 → STUDY,
-          정상 프레임에서 부재 5초 → AWAY, 마지막 유효 관측 후 timeout → UNKNOWN. heartbeat로 STUDY 복구 안 함.
-수동 휴식(BREAK)은 두 모드 모두 사용자 입력이 우선이다.
+- AI    : 카메라 관측. 시작·재개는 UNKNOWN → ROI 안 1명이 3초 안정 → STUDY (첫 관측 시각으로 소급),
+          정상 프레임에서 부재 5초 → AWAY_PENDING (첫 미감지 시각으로 소급).
+          복귀가 이탈 시작 후 15분 이내면 이탈 전체를 BREAK, 넘으면 전체를 AWAY로 확정 (같은 구간의 상태만 바꿈).
+          마지막 유효 관측 후 timeout → UNKNOWN (끊긴 pending은 AWAY로 확정). heartbeat로 STUDY 복구 안 함.
+수동 휴식(BREAK)은 두 모드 모두 사용자 입력이 우선이다. 휴식·종료·모드 전환 시 pending은 AWAY로 확정.
 상태 API(current_state)와 집계(seconds_by_state)는 같은 정산 규칙(_stale_cut)을 쓴다.
 """
 from datetime import datetime, time, timedelta
@@ -22,7 +24,8 @@ State = StudyInterval.State
 Source = StudyInterval.Source
 HEARTBEAT_TIMEOUT = timedelta(seconds=90)  # 수동 모드: 화면 신호가 이 시간 넘게 없으면 끊긴 것으로 봄
 PRESENT_AFTER = timedelta(seconds=3)       # AI 모드: ROI 안 1명이 이만큼 안정적으로 보이면 STUDY
-AWAY_AFTER = timedelta(seconds=5)          # AI 모드: 정상 프레임에서 부재가 이만큼 이어지면 AWAY
+AWAY_AFTER = timedelta(seconds=5)          # AI 모드: 정상 프레임에서 부재가 이만큼 이어지면 AWAY_PENDING
+BREAK_LIMIT = timedelta(seconds=900)       # 이 시간 안에 복귀하면 이탈 전체가 BREAK, 넘으면 AWAY (서비스 분류 규칙)
 PHONE_ALERT_AFTER = timedelta(seconds=10)  # 휴대폰이 이 시간 넘게 계속 보이면 집중 이탈 1회
 
 
@@ -49,7 +52,7 @@ def _stale_cut(session, interval, now):
     if interval.ended_at or session.status != Status.ACTIVE:
         return None
     if session.mode == Mode.AI:
-        if interval.state in (State.STUDY, State.AWAY):
+        if interval.state in (State.STUDY, State.AWAY, State.AWAY_PENDING):
             last = max(session.last_observed_at or interval.started_at, interval.started_at)
             if now - last > ai_timeout():
                 return last
@@ -75,11 +78,19 @@ def _reset_candidates(s):
     s.presence_since = s.absent_since = None
 
 
+def _confirm_pending(cur, state):
+    """복귀 확인 중이던 이탈 구간 전체를 BREAK 또는 AWAY로 확정 (구간을 나누지 않음)."""
+    if cur and cur.state == State.AWAY_PENDING:
+        cur.state = state
+        cur.save(update_fields=["state"])
+
+
 def _settle_gap(s, now):
     """끊긴 시간을 UNKNOWN으로 확정한다. 수동 휴식(BREAK)은 건드리지 않는다."""
     cur = _current(s)
     cut = cur and _stale_cut(s, cur, now)
     if cut:
+        _confirm_pending(cur, State.AWAY)  # 복귀 확인 없이 끊긴 이탈은 AWAY
         _switch(s, cur, State.UNKNOWN, cut, Source.AUTO if s.mode == Mode.AI else Source.MANUAL)
         _reset_candidates(s)
 
@@ -122,6 +133,7 @@ def _change(session, allowed, new_status, message, new_state=None):
             raise SessionError(message)
         _settle_gap(s, now)
         cur = _current(s)
+        _confirm_pending(cur, State.AWAY)  # 휴식·종료 버튼 = 복귀 확인 없이 끝남
         if new_state:
             state, source = _entry(s.mode) if new_state == "ENTRY" else (new_state, Source.MANUAL)
             _switch(s, cur, state, now, source)
@@ -164,7 +176,9 @@ def set_mode(session, mode, roi=None, phone_detection=None):
             s.last_observed_at, s.realtime_state = None, {}
             if s.status == Status.ACTIVE:
                 state, source = _entry(mode)
-                _switch(s, _current(s), state, now, source)
+                cur = _current(s)
+                _confirm_pending(cur, State.AWAY)
+                _switch(s, cur, state, now, source)
         s.last_seen_at = now
         s.save()
     return s
@@ -217,12 +231,16 @@ def observe(session, seq, kind, phone_confidence=None):
                 s.absent_since, s.last_observed_at = None, now
                 s.presence_since = s.presence_since or now
                 if cur.state != State.STUDY and now - s.presence_since >= PRESENT_AFTER:
-                    _switch(s, cur, State.STUDY, max(cur.started_at, s.presence_since), Source.AUTO)
+                    back = max(cur.started_at, s.presence_since)  # 첫 복귀 관측 시각 기준
+                    _confirm_pending(cur, State.BREAK if back - cur.started_at <= BREAK_LIMIT else State.AWAY)
+                    _switch(s, cur, State.STUDY, back, Source.AUTO)
             elif kind == ABSENT:
                 s.presence_since, s.last_observed_at = None, now
                 s.absent_since = s.absent_since or now
-                if cur.state != State.AWAY and now - s.absent_since >= AWAY_AFTER:
-                    _switch(s, cur, State.AWAY, max(cur.started_at, s.absent_since), Source.AUTO)
+                if cur.state in (State.STUDY, State.UNKNOWN) and now - s.absent_since >= AWAY_AFTER:
+                    _switch(s, cur, State.AWAY_PENDING, max(cur.started_at, s.absent_since), Source.AUTO)
+                elif cur.state == State.AWAY_PENDING and now - cur.started_at > BREAK_LIMIT:
+                    _confirm_pending(cur, State.AWAY)  # 15분이 지나도록 복귀 없음
             else:  # 유효 관측 아님 → last_observed_at 그대로 (timeout 지나면 UNKNOWN)
                 _reset_candidates(s)
         else:
@@ -251,7 +269,8 @@ def _segments(interval, now):
         return [(interval.state, interval.started_at, interval.ended_at)]
     cut = _stale_cut(interval.session, interval, now)
     if cut:
-        return [(interval.state, interval.started_at, cut), (State.UNKNOWN, cut, now)]
+        state = State.AWAY if interval.state == State.AWAY_PENDING else interval.state  # 끊긴 pending = AWAY
+        return [(state, interval.started_at, cut), (State.UNKNOWN, cut, now)]
     return [(interval.state, interval.started_at, now)]
 
 

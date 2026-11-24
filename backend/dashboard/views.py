@@ -27,19 +27,20 @@ ACTION_NAMES = {  # data/raw 폴더 ID와 같게
 STATUS_ORDER = ["SUCCESS", "FAILURE", "STARTED", "PENDING"]
 # 색각 이상 검사를 통과한 조합 (초록·보라·황색) + 대기는 회색. 상태 이름이 항상 함께 표시됨
 STATUS_COLORS = {"SUCCESS": "#1d7a52", "FAILURE": "#8a4fb8", "STARTED": "#dca23a", "PENDING": "#a7aba3"}
-STATE_COLORS = {"STUDY": "#315d49", "BREAK": "#d7bb85", "AWAY": "#9b8fc4", "UNKNOWN": "#c9ccc4"}
+STATE_COLORS = {"STUDY": "#315d49", "BREAK": "#d7bb85", "AWAY": "#9b8fc4", "AWAY_PENDING": "#c4bde0", "UNKNOWN": "#c9ccc4"}
+ACTION_LABELS = ("drink_return", "wave", "walk_turn_walk")  # 행동 횟수는 실제 모델 라벨별로 (물 마시기·손 흔들기·걷기)
 
 
 def _day_summary(user, day, now=None):
     start, end = day_range(day)
-    counts = dict(
-        BehaviorEvent.objects.filter(user=user, is_valid=True, occurred_at__gte=start, occurred_at__lt=end)
-        .values_list("event_type").annotate(n=Count("id"))
-    )
+    valid = BehaviorEvent.objects.filter(user=user, is_valid=True, occurred_at__gte=start, occurred_at__lt=end)
+    counts = dict(valid.values_list("event_type").annotate(n=Count("id")))
+    actions = dict(valid.values_list("action_label").annotate(n=Count("id")))
     return {
         "date": day,
         "seconds": day_seconds(user, day, now),
         "events": {e: counts.get(e, 0) for e in EventType.values},
+        "actions": {a: actions.get(a, 0) for a in ACTION_LABELS},
     }
 
 
@@ -48,7 +49,8 @@ def _week(user, today):
 
 
 WEEKDAYS = "월화수목금토일"
-FEED_TEXT = {"STUDY": "공부 시작·재개", "BREAK": "휴식 시작", "AWAY": "자리 비움 감지", "UNKNOWN": "연결 끊김 (확인 불가)"}
+FEED_TEXT = {"STUDY": "공부 시작·재개", "BREAK": "휴식", "AWAY": "장기 자리 비움", "AWAY_PENDING": "자리 비움 · 복귀 확인 중",
+             "UNKNOWN": "카메라 확인 필요 (확인 불가)"}
 
 
 def _timeline(user, day, now):

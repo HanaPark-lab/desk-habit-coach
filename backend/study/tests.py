@@ -106,7 +106,7 @@ PRESENT_FRAME = {"persons": [{"track_id": 1, "box": [0.3, 0.2, 0.7, 0.9], "keypo
                  "presence_candidate": True, "quality_passed": True, "track_count": 1}
 
 
-class AiModeTests(TestCase):  # S01~S04: AI 착석 추정 상태 전환
+class AiBase(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("fox", password="unused-pass-7")
         with sec(0):
@@ -130,6 +130,8 @@ class AiModeTests(TestCase):  # S01~S04: AI 착석 추정 상태 전환
         with sec(seconds):
             return te.seconds_by_state(self.s.intervals.all())
 
+
+class AiModeTests(AiBase):  # S01~S04: AI 착석 추정 상태 전환
     def test_starts_unknown_and_needs_3s_stable_presence(self):
         self.assertEqual(self.states(), [("UNKNOWN", "AUTO")])
         self.see_each(1, 3)
@@ -142,13 +144,13 @@ class AiModeTests(TestCase):  # S01~S04: AI 착석 추정 상태 전환
         self.see_each(1, 9)
         self.see_each(10, 14, te.ABSENT)
         self.assertEqual(self.states()[-1][0], "STUDY")    # 부재 4초 → 아직 공부
-        self.see(15, te.ABSENT)                            # 5초 → 10초 시점부터 AWAY
+        self.see(15, te.ABSENT)                            # 5초 → 10초 시점부터 복귀 확인 중
         self.see_each(16, 18)
-        self.assertEqual(self.states()[-1][0], "AWAY")     # 복귀 2초 → 아직
-        self.see(19)                                       # 3초 → 16초 시점부터 STUDY
-        self.assertEqual([s for s, _ in self.states()], ["UNKNOWN", "STUDY", "AWAY", "STUDY"])
+        self.assertEqual(self.states()[-1][0], "AWAY_PENDING")  # 복귀 2초 → 아직
+        self.see(19)                                       # 3초 → 16초 시점부터 STUDY, 이탈 6초는 휴식
+        self.assertEqual([s for s, _ in self.states()], ["UNKNOWN", "STUDY", "BREAK", "STUDY"])
         t = self.totals(19)
-        self.assertEqual((t["UNKNOWN"], t["STUDY"], t["AWAY"]), (1, 12, 6))
+        self.assertEqual((t["UNKNOWN"], t["STUDY"], t["BREAK"]), (1, 12, 6))
         self.assertEqual(sum(t.values()), 19)  # 겹침 없음, 합계 = 경과 시간
 
     def test_unclear_frames_and_disconnect_become_unknown(self):
@@ -196,6 +198,89 @@ class AiModeTests(TestCase):  # S01~S04: AI 착석 추정 상태 전환
         self.assertEqual(alerts, [False, False, True, False])  # 12초째 1건, 같은 연속 구간은 추가 없음
         self.see(51)
         self.assertEqual(BehaviorEvent.objects.filter(event_type="PHONE").count(), 1)
+
+
+class BreakRuleTests(AiBase):  # STUDY_BREAK_IMPLEMENTATION.md B01~B12 (B10 중복·역순, B11 시작/재개, B12 수동은 위 테스트)
+    def see_range(self, a, b, kind=te.PRESENT, step=2):
+        for t in range(a, b + 1, step):
+            self.see(t, kind)
+
+    def leave_and_return(self, back_at):
+        """1~9초 공부 → 10초부터 이탈 → back_at초부터 3초간 복귀."""
+        self.see_range(1, 9, step=1)
+        self.see_range(10, back_at - 2, te.ABSENT)
+        self.see_range(back_at, back_at + 3, step=1)
+        return self.totals(back_at + 3)
+
+    def test_b01_short_absence_creates_nothing(self):
+        self.see_range(1, 4, step=1)
+        self.see_range(5, 6, te.ABSENT, step=1)  # 2초만 미감지
+        self.see_range(7, 10, step=1)
+        self.assertEqual([s for s, _ in self.states()], ["UNKNOWN", "STUDY"])
+
+    def test_b02_return_after_10min_is_all_break(self):
+        t = self.leave_and_return(610)
+        self.assertEqual([s for s, _ in self.states()], ["UNKNOWN", "STUDY", "BREAK", "STUDY"])
+        self.assertEqual((t["BREAK"], t["AWAY"], t["AWAY_PENDING"]), (600, 0, 0))
+
+    def test_b03_return_exactly_15min_is_break(self):
+        t = self.leave_and_return(910)  # 첫 복귀 관측이 이탈 900초 뒤
+        self.assertEqual((t["BREAK"], t["AWAY"]), (900, 0))
+
+    def test_b04_return_after_25min_is_all_away(self):
+        self.see_range(1, 9, step=1)
+        self.see_range(10, 1000, te.ABSENT)
+        self.assertEqual(self.states()[-1][0], "AWAY")     # 15분 넘게 미복귀 → 같은 구간을 AWAY로 확정
+        self.see_range(1002, 1508, te.ABSENT)
+        self.see_range(1510, 1513, step=1)
+        t = self.totals(1513)
+        self.assertEqual([s for s, _ in self.states()], ["UNKNOWN", "STUDY", "AWAY", "STUDY"])
+        self.assertEqual((t["AWAY"], t["BREAK"]), (1500, 0))
+
+    @override_settings(EVENT_THRESHOLDS={"DRINK": 0.5, "MOVEMENT": 0.5})
+    def test_b05_b06_actions_do_not_change_time_state(self):
+        self.see_range(1, 9, step=1)
+        before = self.states()
+        walk = event_service.record_realtime(self.s, cands(walk=0.8, other=0.2), "service", "rf", T0 + timedelta(seconds=9))
+        drink = event_service.record_realtime(self.s, cands(drink=0.8, other=0.2), "service", "rf", T0 + timedelta(seconds=9))
+        self.assertEqual((walk.event_type, walk.action_label, drink.event_type), ("MOVEMENT", "walk_turn_walk", "DRINK"))
+        self.assertEqual(self.states(), before)
+
+    def test_b07_disconnect_during_pending_is_away_then_unknown(self):
+        self.see_range(1, 9, step=1)
+        self.see_range(10, 20, te.ABSENT, step=1)           # 15초부터 복귀 확인 중(10초~)
+        with sec(60):
+            te.heartbeat(self.s)                            # 20초 이후 관측 없음
+        self.assertEqual([s for s, _ in self.states()], ["UNKNOWN", "STUDY", "AWAY", "UNKNOWN"])
+        t = self.totals(60)
+        self.assertEqual((t["STUDY"], t["AWAY"], t["UNKNOWN"], sum(t.values())), (9, 10, 41, 60))
+
+    def test_b08_manual_break_not_overwritten(self):
+        self.see_range(1, 9, step=1)
+        with sec(10):
+            te.pause(self.s)
+        self.see_range(11, 1210, te.ABSENT, step=10)
+        with sec(1210):
+            te.resume(self.s)
+        t = self.totals(1210)
+        self.assertEqual((t["BREAK"], t["AWAY"]), (1200, 0))
+
+    def test_b09_end_while_pending_is_away(self):
+        self.see_range(1, 9, step=1)
+        self.see_range(10, 20, te.ABSENT, step=1)
+        with sec(22):
+            s = te.end(self.s)
+        self.assertEqual([i.state for i in s.intervals.all()], ["UNKNOWN", "STUDY", "AWAY"])
+        self.assertFalse(s.intervals.filter(ended_at__isnull=True).exists())
+
+    def test_pending_shown_in_api_fields(self):
+        self.see_range(1, 9, step=1)
+        self.see_range(10, 20, te.ABSENT, step=1)
+        from .serializers import StudySessionSerializer
+        self.s.refresh_from_db()
+        with sec(20):
+            data = StudySessionSerializer(self.s).data
+        self.assertEqual((data["state"], data["pending_seconds"], data["study_seconds"]), ("AWAY_PENDING", 10, 9))
 
 
 class ModeSwitchTests(TestCase):
@@ -379,7 +464,8 @@ class StudyApiTests(TestCase):
         event(self.alice), event(self.alice), event(self.alice, valid=False), event(self.alice, "MOVEMENT"), event(self.bob)
         data = self.api.get("/api/dashboard/today/").data
         self.assertEqual(data["events"], {"DRINK": 2, "MOVEMENT": 1, "PHONE": 0})
-        self.assertEqual(set(data["seconds"]), {"STUDY", "BREAK", "AWAY", "UNKNOWN"})
+        self.assertEqual(set(data["seconds"]), {"STUDY", "BREAK", "AWAY", "AWAY_PENDING", "UNKNOWN"})
+        self.assertEqual(data["actions"], {"drink_return": 2, "wave": 1, "walk_turn_walk": 0})
         self.assertEqual(len(self.api.get("/api/dashboard/weekly/").data["days"]), 7)
 
 

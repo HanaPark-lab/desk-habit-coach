@@ -46,7 +46,7 @@
 <div class="tiles focus-tiles">
   <div class="tile plain"><div class="tile-label">AI 추정 착석 시간</div><div class="tile-value" id="t-ai">0분</div></div>
   <div class="tile plain"><div class="tile-label">수동 기록 시간</div><div class="tile-value" id="t-manual">0분</div></div>
-  <div class="tile plain"><div class="tile-label">확인 불가 · 자리 비움</div><div class="tile-value" id="t-other">0분 · 0분</div></div>
+  <div class="tile plain"><div class="tile-label">휴식 · 자리 비움 · 확인 불가</div><div class="tile-value" id="t-other">0 · 0 · 0분</div></div>
   <div class="tile plain"><div class="tile-label">음료 섭취 (오늘)</div><div class="tile-value" id="t-drink">{{ drinks_today }}회</div></div>
   <div class="tile plain" id="tile-phone" hidden><div class="tile-label">휴대폰 감지</div><div class="tile-value" id="t-phone">0회</div></div>
 </div>
@@ -59,8 +59,9 @@
 </div>
 <p class="error" id="study-error" role="alert"></p>
 <p class="note">AI 착석 추정은 실제 집중도가 아니라 '자리에 앉아 있었는지'를 추정합니다.
-  카메라를 켜면 '확인 중'에서 시작해 한 사람이 3초 이상 분명히 보이면 착석, 5초 넘게 비어 있으면 자리 비움으로 바뀝니다.
-  가림·여러 명·연결 끊김은 '확인 불가'로 따로 셉니다. 휴식은 버튼으로만 기록됩니다.
+  카메라를 켜면 '확인 중'에서 시작해 한 사람이 3초 이상 분명히 보이면 공부 중, 5초 넘게 비어 있으면 '복귀 확인 중'이 됩니다.
+  15분 안에 돌아오면 비운 시간 전체가 휴식, 넘으면 전체가 장기 자리 비움으로 확정됩니다 (휴식 목적을 판단하는 것은 아닙니다).
+  가림·여러 명·연결 끊김은 '확인 불가'로 따로 셉니다. 일시정지 버튼의 휴식은 길이와 관계없이 휴식입니다. 화면에 한 사람만 보이게 해 주세요.
   카메라를 끄면 수동 타이머로 30초마다 연결만 확인하며, 90초 넘게 끊긴 시간은 '확인 불가'입니다.
   휴대폰 감지는 켰을 때만 동작하고 공부 시간에서 빼지 않습니다. <a href="{% url 'analyses_list' %}">음료·움직임 영상으로 기록하기</a></p>
 

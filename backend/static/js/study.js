@@ -7,24 +7,27 @@
   const FRAME_MS = 1000 / 6;    // 6fps = 실시간 행동 모델 학습 주기 (한 번에 한 요청, 늦으면 그 프레임은 건너뜀)
   const HEARTBEAT_MS = 30000;   // 카메라를 끈 상태의 연결 신호
   const PILL = {
-    AI: { STUDY: "착석 (AI 추정)", BREAK: "휴식 중", AWAY: "자리 비움", UNKNOWN: "확인 중 · 확인 불가" },
-    MANUAL: { STUDY: "공부 중 (수동)", BREAK: "휴식 중", AWAY: "자리 비움", UNKNOWN: "연결 끊김 · 확인 불가" },
+    AI: { STUDY: "공부 중 (AI 추정)", BREAK: "휴식 중", AWAY: "장기 자리 비움", AWAY_PENDING: "자리 비움 · 복귀 확인 중", UNKNOWN: "카메라 확인 필요" },
+    MANUAL: { STUDY: "공부 중 (수동)", BREAK: "휴식 중", AWAY: "장기 자리 비움", AWAY_PENDING: "자리 비움 · 복귀 확인 중", UNKNOWN: "연결 끊김 · 확인 불가" },
   };
   const EDGES = [[0, 5], [0, 6], [5, 6], [5, 7], [7, 9], [6, 8], [8, 10], [5, 11], [6, 12], [11, 12], [11, 13], [13, 15], [12, 14], [14, 16]];
   let session = null;
-  let secs = { AUTO: 0, MANUAL: 0, UNKNOWN: 0, AWAY: 0 }; // 서버 값 + 다음 응답까지 화면에서만 증가
+  let secs = { AUTO: 0, MANUAL: 0, BREAK: 0, AWAY: 0, AWAY_PENDING: 0, UNKNOWN: 0 }; // 서버 값 + 다음 응답까지 화면에서만 증가
   let drinks = Number($("t-drink").textContent.replace(/\D/g, "")) || 0;
   let stream = null;
   let busy = false;
   let breakAlerted = false;
+  let lastSync = Date.now(); // 마지막 서버 응답 시각
   const breakOpt = $("opt-break");
   breakOpt.checked = localStorage.getItem("breakAlert") === "1";
   breakOpt.addEventListener("change", () => localStorage.setItem("breakAlert", breakOpt.checked ? "1" : "0"));
 
   const mmss = (sec) => `${pad(Math.floor(sec / 60))}:${pad(Math.floor(sec % 60))}`;
-  const focusElapsed = () =>
-    session && session.current_state === "STUDY" && session.current_started_at
-      ? Math.max(0, (Date.now() - new Date(session.current_started_at)) / 1000) : 0;
+  const focusElapsed = () => {
+    if (!(session && session.current_state === "STUDY" && session.current_started_at)) return 0;
+    const until = session.mode === "AI" ? Math.min(Date.now(), lastSync + 5000) : Date.now(); // 응답이 끊기면 시계 정지
+    return Math.max(0, (until - new Date(session.current_started_at)) / 1000);
+  };
 
   function showAlert(title, text) {
     $("alert-title").textContent = title;
@@ -43,7 +46,8 @@
     $("focus-pill").dataset.state = session ? session.current_state : "";
     $("mode-label").textContent = mode === "AI" ? "AI 착석 추정" : "수동 타이머";
     if (!s) return;
-    secs = { ...s.study_seconds_by_source, UNKNOWN: s.seconds.UNKNOWN, AWAY: s.seconds.AWAY };
+    lastSync = Date.now();
+    secs = { ...s.study_seconds_by_source, BREAK: s.break_seconds, AWAY: s.away_seconds, AWAY_PENDING: s.pending_seconds, UNKNOWN: s.unknown_seconds };
     $("opt-phone").checked = !!s.phone_detection;
     $("tile-phone").hidden = !s.phone_detection;
     $("t-phone").textContent = `${s.distractions}회`;
@@ -66,12 +70,13 @@
     }
     $("t-ai").textContent = min(secs.AUTO);
     $("t-manual").textContent = min(secs.MANUAL);
-    $("t-other").textContent = `${min(secs.UNKNOWN)} · ${min(secs.AWAY)}`;
+    $("t-other").textContent = `${Math.floor(secs.BREAK / 60)} · ${Math.floor((secs.AWAY + secs.AWAY_PENDING) / 60)} · ${min(secs.UNKNOWN)}`;
     $("t-drink").textContent = `${drinks}회`;
   }
   setInterval(() => {
-    if (session && session.status === "ACTIVE") {
-      const st = session.current_state;
+    if (session) {  // 공부 시간은 STUDY일 때만 증가 (복귀 확인 중·자리 비움·확인 불가 동안 정지)
+      // AI 모드에서 서버 응답이 5초 넘게 없으면 서버도 '확인 불가'로 정산하므로 공부 시간을 늘리지 않음
+      const st = session.mode === "AI" && Date.now() - lastSync > 5000 ? "UNKNOWN" : session.current_state;
       if (st === "STUDY") secs[session.mode === "AI" ? "AUTO" : "MANUAL"]++;
       else if (st in secs) secs[st]++;
     }
