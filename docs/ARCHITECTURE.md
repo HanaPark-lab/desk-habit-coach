@@ -1,83 +1,69 @@
-# 시스템 아키텍처 v2.0
+# 시스템 아키텍처 (구현 기준, 2026-11-24)
 
 ## 전체 시스템 — Docker Compose 5개 서비스
 ```mermaid
 flowchart TB
  B[브라우저: 타이머·카메라·대시보드]
- IP[IP Webcam]
- subgraph SYS[DESK HABIT COACH / Docker Compose]
-  subgraph WEB[Django + DRF]
+ IP[IP Webcam / DroidCam]
+ subgraph SYS[Docker Compose 내부 네트워크]
+  subgraph WEB[Django + DRF :8000]
    API[인증·CRUD·세션 API]
-   ENG[시간 계산·이벤트 중복 제거·알림]
+   ENG[시간 상태 머신·행동 기록·중복 제거]
+   HUB[카메라 중계 허브 MJPEG]
    ORM[Django ORM]
    API --> ENG --> ORM
   end
   subgraph ASYNC[비동기 처리]
-   R[Redis Broker] --> C[Celery Worker]
+   R[Redis :6379 broker] --> C[Celery Worker]
   end
-  subgraph AI[FastAPI]
-   V[영상 및 프레임 입력]
+  subgraph AI[FastAPI :8001 단일 프로세스]
    Y[YOLO Pose / Tracking]
-   F[기존 Feature / Sequence]
-   RF[Random Forest 6종]
-   P[착석 영역·사람 존재 판정]
-   V --> Y --> F --> RF
+   P[ROI·착석 후보·관절 품질]
+   BUF[세션별 30-step 버퍼 6fps]
+   RF[Random Forest 프로필 service/course]
    Y --> P
+   Y --> BUF --> RF
   end
-  subgraph STORAGE[저장 계층]
-   DB[(PostgreSQL)]
-   M[(공유 Media Volume)]
-  end
-  API --> R
-  API --> M
-  C -->|클립 분석| V
-  M --> V
-  C -->|작업 결과 ORM 저장| DB
-  API -->|실시간 샘플 요청| V
-  RF -->|행동 후보 JSON| ENG
-  P -->|상태 후보 JSON| ENG
+  DB[(PostgreSQL :5432)]
+  M[(media volume)]
+  MOD[(RF 모델 파일 read-only)]
+  API -->|commit 후 enqueue| R
+  API --- M
+  C --- M
+  C -->|multipart 영상| AI
+  API -->|프레임 + seq + stream_key| AI
+  AI -->|JSON| C
+  AI -->|JSON| API
+  C -->|결과 ORM 저장| DB
   ORM <--> DB
+  AI --- MOD
  end
- B <-->|HTTPS / 개발 HTTP| API
- IP -->|짧은 클립 수집| C
+ B <-->|8000만 공개| API
+ IP -->|단일 연결| HUB
+ HUB -->|미리보기| B
+ HUB -->|토큰 중계| C
 ```
-위 결과 화살표는 논리적 흐름이다. 클립 결과는 FastAPI → Celery → ORM, 실시간 결과는 FastAPI → Django → ORM 경로로 반환한다. FastAPI는 DB에 직접 접근하지 않는다.
+- FastAPI는 DB와 media 볼륨에 접근하지 않는다. 영상은 Celery가 **multipart**로 보낸다.
+- DroidCam은 동시에 1곳만 접속 가능하므로 Django **카메라 중계 허브**가 카메라에 한 번만 연결해 미리보기(로그인 사용자)와 Celery 수집(HMAC 토큰)에 나눠 준다. 카메라 주소는 브라우저에 보내지 않는다.
+- Django·Celery → FastAPI는 선택적 내부 토큰(`AI_INTERNAL_TOKEN`, `X-Internal-Token`)으로 보호한다. `/health`는 인증 없이 열려 있다.
 
 ## Django 내부
 ```mermaid
 flowchart TB
- B[Templates / JS] --> U[urls.py]
- U --> V[views.py / serializers.py / permissions.py]
- V --> J[analyses: Job CRUD]
- V --> S[study: Session service]
- V --> D[dashboard: 집계]
+ T[Templates / JS] --> U[urls.py]
+ U --> V[views / serializers]
+ V --> J[analyses: Job CRUD·상태·카메라 중계]
+ V --> S[study: 세션·프레임·모드]
+ V --> D[dashboard: 오늘·리포트·관리자]
  J --> Q[Celery publisher]
- S --> T[시간 상태 머신]
- S --> E[행동 이벤트 서비스]
- S --> I[내부 inference client]
- T --> O[Django ORM]
- E --> O
+ S --> TE[time_engine 상태 머신]
+ S --> EV[event_service 행동 기록]
+ S --> CL[FastAPI client]
+ TE --> O[ORM] --> DB[(PostgreSQL)]
+ EV --> O
  D --> O
  J --> O
- O --> DB[(PostgreSQL)]
 ```
-## AI 추론 내부
-```mermaid
-flowchart TB
- subgraph FAST[FastAPI inference]
-  IN[클립 또는 프레임] --> VAL[디코딩·품질 검사]
-  VAL --> YO[YOLO Pose / Tracking]
-  YO --> ROI[착석 ROI / 존재·관절 품질]
-  YO --> FE[기존 38 Feature]
-  FE --> BUF[사람별 30 Step buffer]
-  BUF --> FL[1140D: JSON 순서]
-  FL --> RF[RF predict_proba]
-  RF --> AG[윈도우 집계·후보 필터]
-  ROI --> OUT[상태·행동 후보 JSON]
-  AG --> OUT
- end
-```
-클립과 실시간 입력의 tracker/buffer는 격리한다. 실시간 세션별 상태는 메모리 TTL로 관리하고 초기 배포는 FastAPI 단일 프로세스. 재시작 시 buffer 초기화 및 UNKNOWN 처리. 학습 당시 샘플링 간격을 유지할 수 없으면 행동 추론을 보류한다.
 
 ## 클립 비동기 시퀀스 (교과 필수)
 ```mermaid
@@ -88,74 +74,79 @@ sequenceDiagram
  participant R as Redis
  participant C as Celery
  participant F as FastAPI
- B->>D: MP4 또는 IP Webcam 분석
- D->>P: PENDING 생성
- D->>R: commit 후 enqueue
+ B->>D: POST /api/analyses/ (MP4 또는 IP Webcam)
+ D->>P: PENDING 생성 (잘못된 확장자는 FAILURE 저장)
+ D->>R: transaction.on_commit 후 enqueue
  D-->>B: 202 + Job ID
- R->>C: task
- C->>P: STARTED
- C->>F: 영상 참조
+ R->>C: analyze_job
+ C->>P: PENDING→STARTED (update로 1회만 선점, started_at)
+ C->>F: multipart 영상
  alt 성공
- F-->>C: 사람별 예측
- C->>P: 원자적 결과 저장 + SUCCESS
- else 실패
- C->>P: 오류 메시지 + FAILURE
+ F-->>C: 사람별 예측 + model_profile/version
+ C->>P: 예측·행동 기록·SUCCESS 원자적 저장
+ else 실패 (AI 다운·영상 오류·저장 오류)
+ C->>P: error_code·메시지 + FAILURE
  end
- B->>D: 상태 polling
- D-->>B: 상태 및 결과
+ B->>D: GET /api/analyses/{id}/status/ (2초 polling)
+ D-->>B: 상태·결과·기록 여부
 ```
-## 실시간 세션 시퀀스
+Worker가 죽어 STARTED로 남은 작업은 Celery 시간 제한 + 1분이 지나면 Worker 시작·상태 조회 시 `WORKER_LOST` FAILURE로 정산한다.
+
+## 실시간 세션 시퀀스 (AI 모드)
 ```mermaid
 sequenceDiagram
  participant B as Browser
  participant D as Django
  participant F as FastAPI
  participant P as PostgreSQL
- B->>D: 세션 시작
- D->>P: ACTIVE 생성
- loop 제한된 샘플링 / 한 요청씩
- B->>D: frame + seq
- D->>F: session key + frame
- F-->>D: presence / action candidates
- D->>P: 상태 구간·행동 이벤트 저장
- D-->>B: 시간 및 이벤트
+ B->>D: 세션 시작 / 카메라 켜기 → mode=AI (UNKNOWN 진입)
+ loop 6fps, 한 번에 한 요청
+ B->>D: frame + seq(증가)
+ D->>D: seq ≤ last_seq 이면 무시 (FastAPI 호출 안 함)
+ D->>F: frame + roi + stream_key + seq
+ F-->>D: presence_candidate·quality·track_count·action_candidates
+ D->>P: 상태 구간 (select_for_update) · episode당 행동 1건
+ D-->>B: 상태·시간·기록된 행동
  end
- B->>D: 종료 또는 일시정지
- D->>P: 구간 확정
+ B->>D: 휴식 / 종료 / 카메라 끔
+ D->>F: DELETE /streams/{key}
+ D->>P: 구간 확정 (pending은 AWAY)
 ```
-브라우저 getUserMedia는 명시적 시작 후만 활성화. 초기에는 HTTP 샘플 전송, 동시 요청 1개, 크기·빈도 제한, timeout. 실시간 경로는 Celery 장기 작업으로 만들지 않는다. HTTPS 또는 localhost 필요. 프레임 원본은 기본 미저장. 연결 끊김은 UNKNOWN, 사용자 종료 시 카메라 track stop.
+측정(CPU 20코어, 640×480): `/predict/frame` p50 53ms · p95 60ms → 6fps 유지 가능. 원본 프레임은 저장하지 않는다. 페이지를 떠나면 카메라 track을 정지한다.
 
-## 시간 상태 머신
+## 시간 상태 머신 (AI 모드)
 ```mermaid
 stateDiagram-v2
- [*] --> UNKNOWN
- UNKNOWN --> STUDY: 착석 안정 확인
- STUDY --> AWAY: 자리 비움 지속
- AWAY --> STUDY: 복귀 안정 확인
+ [*] --> UNKNOWN: 시작·재개
+ UNKNOWN --> STUDY: ROI 안 1명 3초 안정
+ STUDY --> AWAY_PENDING: 정상 프레임 부재 5초
+ UNKNOWN --> AWAY_PENDING: 정상 프레임 부재 5초
+ AWAY_PENDING --> STUDY: 복귀 3초 (15분 이내 → 이탈 전체 BREAK)
+ AWAY_PENDING --> AWAY: 15분 초과 / 끊김 / 휴식·종료
+ AWAY --> STUDY: 복귀 3초
+ STUDY --> UNKNOWN: 유효 관측 5초 공백 (가림·다중 인물·끊김)
  STUDY --> BREAK: 수동 휴식
- AWAY --> BREAK: 수동 휴식
- UNKNOWN --> BREAK: 수동 휴식
  BREAK --> UNKNOWN: 재개
- STUDY --> UNKNOWN: 품질 저하 또는 연결 끊김
- AWAY --> UNKNOWN: 연결 끊김
 ```
-STUDY는 착석 기반 추정이며 실제 집중 측정 아님. 수동 휴식 우선, 종료는 모든 상태에서 가능. 상태 구간은 겹치지 않으며 서버 시간 기준으로 계산한다.
+- 수동 모드(카메라 끔): 시작·재개는 STUDY, heartbeat가 90초 넘게 없으면 끊긴 뒤를 UNKNOWN으로 정산. AI 모드에서는 heartbeat로 STUDY를 복구하지 않는다.
+- 소급 시각: STUDY는 첫 복귀 관측, AWAY_PENDING은 첫 미감지 시각. 소급은 현재 구간 시작보다 앞서지 않는다.
+- 상태 API(`current_state`)와 집계(`seconds_by_state`)는 같은 정산 함수(`_stale_cut`)를 쓴다. 구간은 겹치지 않고 합계 = 세션 경과 시간.
+- STUDY는 착석 기반 **공부 추정시간**이며 실제 집중을 측정하지 않는다. 15분 기준은 휴식 목적이 아니라 서비스 분류 규칙이다.
 
 ## 배포
 ```mermaid
 flowchart TB
  B[Browser] -->|8000| D
- subgraph COMPOSE[Docker Compose / internal network]
- D[Django] --> R[Redis 6379] --> C[Celery]
- D --> F[FastAPI 8001]
+ subgraph COMPOSE[Docker Compose]
+ D[django: gunicorn gthread] --> R[redis] --> C[celery]
+ D --> F[fastapi]
  C --> F
- D --> P[PostgreSQL 5432]
+ D --> P[postgres]
  C --> P
- D --- M[(media volume)]
+ D --- M[(media)]
  C --- M
- F --- M
- F --- A[(model files read only)]
- P --- V[(postgres data)]
+ F --- A[(./ai_service/models :ro)]
+ P --- V[(pgdata)]
  end
 ```
-Django만 외부 공개. IP Webcam은 Worker가 허용된 주소로 접속. 모델·DB·Redis 포트는 내부 전용. GPU/CPU 자원 및 동시 추론 제한을 측정한다.
+시작 순서: postgres·redis·fastapi healthy → django(migrate·collectstatic·gunicorn) healthy → celery. 모델 로딩 실패 시 fastapi가 unhealthy가 되어 django가 시작하지 않는다. 로컬 개발은 `compose.dev.yaml`로 DB·Redis만 127.0.0.1에 공개한다.

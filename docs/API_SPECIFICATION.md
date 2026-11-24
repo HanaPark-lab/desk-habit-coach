@@ -1,34 +1,42 @@
-# API 명세 v2.0
-## Django / DRF (인증·소유권 검사)
+# API 명세 (구현 기준)
+
+## Django / DRF — 세션 로그인 필요, 본인 데이터만 (다른 사용자 것은 404)
 | Method | URL | 기능 |
 |---|---|---|
-| POST/GET | /api/jobs/ | 클립 작업 생성·목록 |
-| GET/PATCH/DELETE | /api/jobs/{id}/ | 상세·제목/메모 수정·삭제 |
-| POST | /api/study/sessions/ | 세션 시작 |
-| GET | /api/study/sessions/ | 내 세션 목록 |
-| GET | /api/study/sessions/{id}/ | 상태·시간 합계 |
-| POST | /api/study/sessions/{id}/frames/ | 실시간 샘플 분석 |
-| POST | /api/study/sessions/{id}/pause/ | 수동 휴식 |
-| POST | /api/study/sessions/{id}/resume/ | 재개 |
-| POST | /api/study/sessions/{id}/end/ | 종료 |
-| GET | /api/study/sessions/{id}/events/ | 행동 기록 |
-| PATCH | /api/study/events/{id}/ | 오인식 기록 무효화 |
-| GET | /api/dashboard/today/ | 일일 시간·행동 집계 |
-| GET | /api/dashboard/weekly/ | 주간 집계 |
-| GET | /api/admin/summary/ | 관리자 전용 작업 통계 |
+| POST | /api/analyses/ | 클립 작업 생성 → 202 + 작업 |
+| GET | /api/analyses/ | 내 작업 목록 (20개씩) |
+| GET / PATCH / DELETE | /api/analyses/{id}/ | 상세 · 제목/메모만 수정 · 삭제 (PENDING/STARTED는 409) |
+| GET | /api/analyses/{id}/status/ | 상태·사람별 결과·기록 여부 (polling) |
+| GET | /analyses/cameras/{key}/stream/ | 허용 카메라 MJPEG 중계 (로그인 또는 Celery 토큰) |
+| POST | /api/study/sessions/ | 세션 시작 `{"mode": "MANUAL" \| "AI"}` |
+| GET | /api/study/sessions/ · /{id}/ | 목록 · 상태·시간 |
+| POST | /api/study/sessions/{id}/mode/ | 모드 전환 `{"mode", "roi"?: [x1,y1,x2,y2], "phone_detection"?: bool}` |
+| POST | /api/study/sessions/{id}/frames/ | AI 모드 프레임 (multipart `frame` JPEG ≤ 2MB, `seq`) |
+| POST | /api/study/sessions/{id}/heartbeat/ | 수동 모드 연결 신호 (30초) |
+| POST | /api/study/sessions/{id}/pause/ · resume/ · end/ | 수동 휴식 · 재개 · 종료 |
+| GET | /api/study/sessions/{id}/events/ | 세션 행동 기록 |
+| GET / PATCH | /api/study/events/ · /{id}/ | 내 행동 기록 · `{"is_valid": false}` 오인식 정정 |
+| GET | /api/dashboard/today/ · weekly/ | 상태별 초·행동 횟수(유형·라벨별)·목표 |
+| GET | /staff/dashboard/ | 관리자 화면 (is_staff만, 그 외 403) |
 
-Job POST multipart: input_type=upload 또는 ip_webcam, video 또는 허용된 camera_id. 202 + job_id; 잘못된 파일도 Job FAILURE 저장 후 4xx와 ID 반환. PATCH는 제목/메모만. 카메라 주소는 서버 허용 목록 사용.
+**작업 생성** (multipart): `input_type=UPLOAD` + `video_file` 또는 `input_type=IPCAM` + `camera_key`(서버 허용 목록) + `capture_seconds`(5~15). 확장자가 영상이 아니면 작업을 FAILURE(`INVALID_FILE`)로 저장하고 202로 반환한다. 파일 없음·허용되지 않은 카메라·범위 밖 시간은 400.
 
-Frame POST multipart: frame(JPEG), seq(단조 증가 정수). 서버 시간 사용. 세션 ACTIVE만 허용. 중복 seq는 재처리하지 않음, 과거 seq는 무시/409, 요청 과다 429. 응답 예시(가상 수치):
+**작업 응답 주요 필드**: `id, status, model_profile, model_version, error_code, error_message, processing_ms, predictions[{track_id, action_label, confidence, window_count, probabilities, event_type, event_score}], record{recorded, event_type, reason}`.
+
+**세션 응답**: `id, status, mode, roi, phone_detection, current_state, current_started_at, seconds{STUDY,BREAK,AWAY,AWAY_PENDING,UNKNOWN}, study_seconds_by_source{AUTO,MANUAL}, distractions, intervals[]` + 평평한 필드:
 ```json
-{"session_id":"uuid","seq":42,"state":"STUDY","study_seconds":120,"break_seconds":0,"away_seconds":10,"unknown_seconds":5,"new_events":[{"action_label":"drink_return","event_type":"DRINK","confidence":0.91}]}
+{"state": "AWAY_PENDING", "study_seconds": 3000, "break_seconds": 0, "away_seconds": 0, "pending_seconds": 120, "unknown_seconds": 0}
 ```
-## FastAPI 내부 전용
+**프레임 응답**: 세션 응답 + `persons[{index, box, keypoints}]`(index는 프레임 내 순번, 추적 ID 아님), `phones`, `observation`(present/absent/unclear), `ignored`, `action_candidates`, `buffer_steps`, `recorded_event`, `phone_alert`. 수동 모드 409, 종료 세션 409, seq 없음 400, AI 서버 오류 503.
+
+## FastAPI — 내부 전용 (`X-Internal-Token`, `AI_INTERNAL_TOKEN` 설정 시)
 | Method | URL | 기능 |
 |---|---|---|
-| GET | /health | 모델 준비 상태 |
-| POST | /predict/video | 공유 볼륨 영상 참조 → 사람별 예측 |
-| POST | /predict/frame | 세션별 프레임 → 상태·행동 후보 |
-| DELETE | /streams/{key} | 세션 buffer 해제 |
+| GET | /health | 모델 프로필·버전·클래스·feature 수·버퍼 수 (인증 없음) |
+| POST | /predict/video | multipart 영상(≤ MAX_UPLOAD_MB) → 사람별 예측 |
+| POST | /predict/frame | 프레임 + `roi`, `stream_key`, `seq`, `detect_phone` → 착석 후보·행동 후보 |
+| DELETE | /streams/{key} | 세션 버퍼 삭제 |
 
-영상 결과: model_version, predictions[{track_id, action_label, confidence, window_count}], processing_ms. 프레임 결과: seq, presence_candidate, quality_passed, track_count, action_candidates[], processing_ms. 입력 경로 정규화, 내부 인증, timeout, 크기 제한. DB 쓰기 없음. 브라우저 세션 ID를 내부 stream key로 매핑한다.
+영상 결과: `model_profile, model_version, predictions[{track_id, action_label, confidence, window_count, probabilities}], error_code(NO_PERSON/NO_VALID_WINDOW), message, processing_ms`. 422: INVALID_VIDEO, TOO_SHORT(5초 미만), INVALID_FRAME, INVALID_ROI. 413: TOO_LARGE. 401: UNAUTHORIZED.
+
+프레임 결과: `persons, phones, track_count, quality_passed, presence_candidate, action_candidates[{label, probability}], buffer_steps, model_profile, model_version, processing_ms`. DB 쓰기 없음.
