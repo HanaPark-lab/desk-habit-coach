@@ -1,0 +1,9 @@
+# 로컬 개발용: DB·Redis 포트를 이 PC(127.0.0.1)에만 공개. runserver·uvicorn·celery를 직접 실행할 때 쓴다.
+#   docker compose -f compose.yaml -f compose.dev.yaml up -d postgres redis
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:${DATABASE_PORT:-5442}:5432"
+  redis:
+    ports:
+      - "127.0.0.1:${REDIS_HOST_PORT:-6389}:6379"

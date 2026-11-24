@@ -1,5 +1,18 @@
-# 지금은 DB·Redis만 실행. 11단계에서 django·fastapi·celery를 추가해 5개 서비스로 완성한다.
-# 실행: docker compose up -d   (값은 .env에서 읽음)
+# 5개 서비스: postgres · redis · fastapi · django · celery
+#   전체 실행:   docker compose up --build -d      → http://localhost:8000
+#   중지:        docker compose down               (데이터는 볼륨에 남음. -v 옵션은 DB를 지우므로 쓰지 않는다)
+#   로컬 개발(DB·Redis만, 이 PC 포트 공개):
+#                docker compose -f compose.yaml -f compose.dev.yaml up -d postgres redis
+# 값은 .env에서 읽고, 컨테이너 사이 주소는 아래 environment가 덮어쓴다 (postgres:5432, redis:6379, fastapi:8001, django:8000).
+x-backend-env: &backend-env
+  DATABASE_HOST: postgres
+  DATABASE_PORT: "5432"
+  REDIS_URL: redis://redis:6379/0
+  FASTAPI_URL: http://fastapi:8001
+  CAMERA_RELAY_BASE: http://django:8000      # Celery가 카메라 영상을 받는 Django 중계 주소
+  DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,django
+  MEDIA_ROOT: /data/media
+
 services:
   postgres:
     image: postgres:17
@@ -9,8 +22,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data   # 컨테이너를 지워도 데이터 유지 (T10)
-    ports:
-      - "127.0.0.1:${DATABASE_PORT:-5442}:5432"   # 개발용. 이 PC에서만 접속 (5432는 다른 프로젝트가 사용 중)
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -19,13 +30,61 @@ services:
 
   redis:
     image: redis:7
-    ports:
-      - "127.0.0.1:${REDIS_HOST_PORT:-6389}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       retries: 10
     restart: unless-stopped
 
+  fastapi:
+    build: ./ai_service
+    environment:
+      MODEL_DIR: /app/models
+      MODEL_PROFILE: ${MODEL_PROFILE:-service}
+      AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:-}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-50}
+    volumes:
+      - ./ai_service/models:/app/models:ro   # RF 모델 파일 (재학습 후 재시작만 하면 반영)
+    healthcheck:   # 모델 로딩 실패 시 서버가 뜨지 않아 unhealthy → django·celery가 시작하지 않음
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=3)"]
+      interval: 10s
+      start_period: 60s
+      retries: 6
+    restart: unless-stopped
+
+  django:
+    build: ./backend
+    env_file: .env
+    environment: *backend-env
+    command: >
+      sh -c "python manage.py migrate --noinput && python manage.py collectstatic --noinput -v0 &&
+             exec gunicorn config.wsgi --bind 0.0.0.0:8000 --worker-class gthread --workers 1 --threads 16 --timeout 0 --access-logfile -"
+    ports:
+      - "8000:8000"   # 외부에 공개하는 유일한 서비스
+    volumes:
+      - media:/data/media
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      fastapi: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/accounts/login/', timeout=3)"]
+      interval: 10s
+      start_period: 30s
+      retries: 6
+    restart: unless-stopped
+
+  celery:
+    build: ./backend
+    env_file: .env
+    environment: *backend-env
+    command: celery -A config worker -l info --concurrency 2
+    volumes:
+      - media:/data/media   # Django가 저장한 업로드 영상을 같은 경로로 읽음
+    depends_on:
+      django: {condition: service_healthy}   # migration이 끝난 뒤 시작
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  media:

@@ -10,6 +10,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
+RUN useradd --create-home app && mkdir -p /data/media && chown -R app /app /data
+USER app
 
 EXPOSE 8000
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+# gthread: 카메라 MJPEG 중계(긴 응답)가 다른 요청을 막지 않게 스레드로 처리
+CMD ["gunicorn", "config.wsgi", "--bind", "0.0.0.0:8000", "--worker-class", "gthread", "--workers", "1", "--threads", "16", "--timeout", "0"]
