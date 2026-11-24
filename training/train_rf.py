@@ -147,11 +147,10 @@ def main():
             "ng_at_base": sum(s >= BASE_THRESHOLD for s in ng_scores),
         }
 
-    # 저장 (가짜 모델과 같은 파일 이름·형식)
+    # 저장 (FastAPI model_loader가 읽는 파일 이름·형식)
     action_ids = dict(sorted({c["id"]: c["label"] for c in actions}.items()))
     info = {
         "model_version": f"rf-{date.today().isoformat()}-other",
-        "is_dummy": False,
         "classes": [str(c) for c in final.classes_],
         "action_ids": {**action_ids, "X***": OTHER},
         "sequence_steps": SEQ_STEPS,

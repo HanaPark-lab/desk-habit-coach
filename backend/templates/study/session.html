@@ -53,7 +53,7 @@
 </div>
 <p class="error" id="study-error" role="alert"></p>
 <p class="note">자리 비움은 카메라에 사람이 5초 넘게 보이지 않을 때, 집중 이탈은 휴대폰이 10초 넘게 계속 보일 때 기록됩니다.
-  카메라를 끄면 30초마다 연결만 확인하며, 연결이 90초 넘게 끊긴 시간은 '확인 불가'로 기록됩니다. <a href="{% url 'analyses_new' %}">음료·움직임 영상으로 기록하기</a></p>
+  카메라를 끄면 30초마다 연결만 확인하며, 연결이 90초 넘게 끊긴 시간은 '확인 불가'로 기록됩니다. <a href="{% url 'analyses_list' %}">음료·움직임 영상으로 기록하기</a></p>
 
 {{ open_session_id|json_script:"open-session" }}
 {% endblock %}

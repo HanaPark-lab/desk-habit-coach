@@ -1,4 +1,4 @@
-"""분석 화면 (UI_UX.md): 내 작업 목록 · 새 분석 · 작업 상세."""
+"""분석 화면 (UI_UX.md): 분석 화면(요청·결과·이력) · 작업 상세 · 카메라 중계."""
 import time
 
 from django.conf import settings
@@ -26,11 +26,6 @@ def job_list(request):
     jobs = (request.user.analysis_jobs.annotate(people=Count("predictions"))
             .prefetch_related("events", "predictions").order_by("-created_at")[:20])  # 집계 쿼리라 정렬 명시
     return render(request, "analyses/list.html", {"jobs": jobs, "page_config": _page_config()})
-
-
-@login_required
-def job_new(request):
-    return render(request, "analyses/new.html", {"page_config": _page_config()})
 
 
 STREAM_MAX_SECONDS = 600  # 미리보기 1회 최대 10분 (서버 스레드를 오래 붙잡지 않게)

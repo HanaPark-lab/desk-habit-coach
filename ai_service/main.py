@@ -36,7 +36,6 @@ def health():
         "status": "ok",
         "model_loaded": b is not None,
         "model_version": b.version if b else None,
-        "is_dummy": bool(b and b.info.get("is_dummy")),
         "classes": b.classes if b else [],
         "feature_count": int(b.model.n_features_in_) if b else 0,
     }

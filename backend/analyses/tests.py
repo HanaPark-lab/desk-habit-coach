@@ -143,8 +143,7 @@ class AnalysisApiTests(TestCase):
 
     def test_pages_render_without_camera_url(self):
         self.client.force_login(self.alice)
-        self.assertEqual(self.client.get("/analyses/").status_code, 200)
-        r = self.client.get("/analyses/new/")
+        r = self.client.get("/analyses/")
         self.assertContains(r, 'id="page-config"')
         self.assertContains(r, "desk_cam_1")
         self.assertNotContains(r, "camera.test")  # 카메라 주소는 브라우저에 보내지 않음

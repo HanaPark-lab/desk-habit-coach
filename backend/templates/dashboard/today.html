@@ -75,7 +75,7 @@
   {% for item in feed %}
     <li class="k-{{ item.kind }}"><span class="feed-icon" aria-hidden="true"></span><span>{{ item.text }}</span><time>{{ item.at|time:"H:i" }}</time></li>
   {% empty %}
-    <li class="muted">오늘 기록이 없습니다. <a href="{% url 'analyses_new' %}">짧은 영상으로 기록하기</a></li>
+    <li class="muted">오늘 기록이 없습니다. <a href="{% url 'analyses_list' %}">짧은 영상으로 기록하기</a></li>
   {% endfor %}
 </ul>
 <p class="note">순공시간은 버튼과 화면 연결 기준의 추정이며 실제 집중도를 측정하지 않습니다. 음료 횟수는 마시는 동작 횟수이며 실제 마신 양이 아닙니다.</p>

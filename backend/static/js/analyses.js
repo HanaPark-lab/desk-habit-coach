@@ -1,6 +1,5 @@
 // 분석 화면 공통: 작업 등록(POST) → 작업 ID로 2초마다 상태 조회 → 사람별 결과 표시.
 // - /analyses/ (교과 사용자 분석 화면): 같은 화면에서 상태·결과 표시 (?job=<id> 로 새로고침해도 유지)
-// - /analyses/new/ : 등록 후 상세 화면으로 이동
 // - /analyses/<id>/: 상태·결과 + 제목·메모 수정·삭제
 // 기록 여부(record)는 서버가 판정한 값을 그대로 보여 준다.
 (() => {
@@ -73,7 +72,7 @@
     }
   }
 
-  // ---- 분석 요청 (교과 화면·새 분석 화면) ----
+  // ---- 분석 요청 (교과 분석 화면) ----
   const form = $("analyze-form");
   if (form) {
     const cfg = JSON.parse($("page-config").textContent);
@@ -161,7 +160,6 @@
       }
       try {
         const job = await api("/api/analyses/", { method: "POST", body: data }); // 202 + 작업 ID 즉시
-        if (!inline) return void (location.href = `/analyses/${job.id}/`);
         reset();
         renderJob(job);
         track(job.id);

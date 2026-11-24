@@ -217,7 +217,7 @@ class PageTests(TestCase):
     def test_member_pages(self):
         self.client.force_login(self.member)
         te.start(self.member)
-        for url in ("/dashboard/", "/study/", "/reports/", "/analyses/", "/analyses/new/"):
+        for url in ("/dashboard/", "/study/", "/reports/", "/analyses/"):
             self.assertEqual(self.client.get(url).status_code, 200, url)
         self.assertNotContains(self.client.get("/dashboard/"), 'href="/staff/dashboard/"')
 
