@@ -3,7 +3,6 @@
 {% block title %}Vision AI 동작 분석 · desk habit.{% endblock %}
 {% block content %}
 <h1 class="course-title">Vision AI 동작 분석</h1>
-<p class="muted">영상에서 사람을 추적하고(YOLO Pose) 30 Step × 38 Feature로 Random Forest가 동작을 예측합니다. 예측 행동은 {{ "drink_return"|action_name }}, {{ "wave"|action_name }}, {{ "walk_turn_walk"|action_name }}, {{ "other"|action_name }}입니다.</p>
 
 <div class="tabs course-tabs" role="tablist" aria-label="입력 방식">
   <button type="button" role="tab" data-mode="UPLOAD" aria-selected="true" aria-controls="upload-fields">영상 업로드</button>
