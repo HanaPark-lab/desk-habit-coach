@@ -6,11 +6,11 @@ from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from analyses.services import AnalysisError, predict_frame
+from analyses.services import AnalysisError, drop_stream, predict_frame
 
 from .models import BehaviorEvent, StudySession
 from .serializers import BehaviorEventSerializer, StudySessionSerializer
-from .services import time_engine
+from .services import event_service, time_engine
 
 MAX_FRAME_BYTES = 2 * 1024 * 1024
 
@@ -46,16 +46,23 @@ class StudySessionViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, view
 
     @action(detail=True, methods=["post"])
     def mode(self, request, pk=None):
-        """수동 ↔ AI 전환 (카메라 켜기/끄기). {"mode": "AI", "roi": [x1, y1, x2, y2]} roi는 선택."""
-        mode, roi = request.data.get("mode"), request.data.get("roi")
+        """수동 ↔ AI 전환 (카메라 켜기/끄기). {"mode": "AI", "roi": [x1, y1, x2, y2], "phone_detection": false}
+        roi·phone_detection은 선택."""
+        mode, roi, phone = request.data.get("mode"), request.data.get("roi"), request.data.get("phone_detection")
         if mode not in StudySession.Mode.values:
             return Response({"detail": "mode는 MANUAL 또는 AI입니다."}, status=status.HTTP_400_BAD_REQUEST)
         if roi is not None and not _valid_roi(roi):
             return Response({"detail": "roi는 0~1 사이 [x1, y1, x2, y2] (x1<x2, y1<y2)입니다."}, status=status.HTTP_400_BAD_REQUEST)
-        return self._respond(time_engine.set_mode, self.get_object(), mode, roi and [float(v) for v in roi])
+        if phone is not None and not isinstance(phone, bool):
+            return Response({"detail": "phone_detection은 true/false입니다."}, status=status.HTTP_400_BAD_REQUEST)
+        session = self.get_object()
+        if mode == StudySession.Mode.MANUAL:
+            drop_stream(session.pk)
+        return self._respond(time_engine.set_mode, session, mode, roi and [float(v) for v in roi], phone)
 
     @action(detail=True, methods=["post"])
     def pause(self, request, pk=None):
+        drop_stream(pk)  # 실시간 버퍼는 휴식 전후를 잇지 않음
         return self._respond(time_engine.pause, self.get_object())
 
     @action(detail=True, methods=["post"])
@@ -64,6 +71,7 @@ class StudySessionViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, view
 
     @action(detail=True, methods=["post"])
     def end(self, request, pk=None):
+        drop_stream(pk)
         return self._respond(time_engine.end, self.get_object())
 
     @action(detail=True, methods=["post"])
@@ -85,17 +93,30 @@ class StudySessionViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, view
             return Response({"detail": "seq(프레임 번호)가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
         if session.mode != StudySession.Mode.AI:
             return Response({"detail": "카메라(AI) 모드에서만 프레임을 반영합니다."}, status=status.HTTP_409_CONFLICT)
+        if session.status == StudySession.Status.ENDED:
+            return Response({"detail": "이미 종료된 세션입니다."}, status=status.HTTP_409_CONFLICT)
+        if seq <= session.last_seq:  # 중복·역순: AI 서버 버퍼에도 넣지 않음
+            return Response({**self.get_serializer(session).data, "ignored": True})
         try:
-            result = predict_frame(frame.read(), session.roi)
+            # 휴식 중에는 버퍼에 쌓지 않음 (stream_key 없이 착석 판단만)
+            key = str(session.pk) if session.status == StudySession.Status.ACTIVE else ""
+            result = predict_frame(frame.read(), session.roi, key, seq, session.phone_detection)
             phone = max((p["confidence"] for p in result["phones"]), default=None)
-            session, alert, ignored = time_engine.observe(session, seq, time_engine.classify(result), phone)
+            kind = time_engine.classify(result)
+            session, alert, ignored = time_engine.observe(session, seq, kind, phone)
+            recorded = None
+            if not ignored and result.get("action_candidates"):
+                recorded = event_service.record_realtime(session, result["action_candidates"], result.get("model_profile"),
+                                                         result.get("model_version", ""), timezone.now())
         except AnalysisError as e:
             return Response({"detail": e.message, "error_code": e.code}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         except time_engine.SessionError as e:
             return Response({"detail": e.message}, status=e.status)
         data = self.get_serializer(self.get_queryset().get(pk=session.pk)).data
         return Response({**data, "persons": result["persons"], "phones": result["phones"], "phone_alert": alert,
-                         "observation": time_engine.classify(result), "ignored": ignored})
+                         "observation": kind, "ignored": ignored,
+                         "action_candidates": result.get("action_candidates", []), "buffer_steps": result.get("buffer_steps", 0),
+                         "recorded_event": recorded.event_type if recorded else ""})
 
     @action(detail=True, methods=["get"])
     def events(self, request, pk=None):

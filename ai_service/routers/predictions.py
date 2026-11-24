@@ -1,5 +1,6 @@
 """POST /predict/video: Celery Worker가 보낸 영상 → 사람별 동작.
-POST /predict/frame: 집중 모드 프레임 1장 → 사람·관절·휴대폰 위치 (저장하지 않음)."""
+POST /predict/frame: 집중 모드 프레임 1장 → 착석 후보·관절·(선택) 휴대폰·실시간 행동 후보 (저장하지 않음).
+DELETE /streams/{key}: 실시간 버퍼 삭제."""
 import os
 import tempfile
 import time
@@ -11,6 +12,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 
 from services.action_inference import predict_people
 from services.pose_pipeline import VideoError, _lock, track_people
+from src.feature_utils import step_features
 from src.sequence_utils import SEQ_STEPS, TARGET_FPS
 
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "50"))
@@ -36,26 +38,37 @@ def _parse_roi(roi):
 
 
 def presence(persons, roi):
-    """ROI(착석 영역) 안 사람 → 착석 후보 판단. 사람 중심이 ROI 안이면 대상으로 본다.
+    """ROI(착석 영역) 안 사람 → (착석 후보 판단, 대상 사람의 persons 위치 또는 None). 사람 중심이 ROI 안이면 대상.
 
     quality_passed: ROI 안 모든 사람의 상체 관절(코·양 어깨)이 분명함 (0명이면 '분명히 없음'으로 통과)
     presence_candidate: ROI 안에 품질 통과한 사람이 정확히 1명
     """
     x1, y1, x2, y2 = roi
-    inside = [p for p in persons if x1 <= (p["box"][0] + p["box"][2]) / 2 <= x2 and y1 <= (p["box"][1] + p["box"][3]) / 2 <= y2]
-    clear = [p for p in inside if sum(p["keypoints"][i][2] for i in UPPER_BODY) / len(UPPER_BODY) >= MIN_KEYPOINT_CONF]
+    inside = [i for i, p in enumerate(persons)
+              if x1 <= (p["box"][0] + p["box"][2]) / 2 <= x2 and y1 <= (p["box"][1] + p["box"][3]) / 2 <= y2]
+    clear = [i for i in inside if sum(persons[i]["keypoints"][k][2] for k in UPPER_BODY) / len(UPPER_BODY) >= MIN_KEYPOINT_CONF]
     quality = len(clear) == len(inside)
-    return {"track_count": len(inside), "quality_passed": quality, "presence_candidate": quality and len(inside) == 1}
+    candidate = quality and len(inside) == 1
+    info = {"track_count": len(inside), "quality_passed": quality, "presence_candidate": candidate}
+    return info, (inside[0] if candidate else None)
 
 
 UPPER_BODY = (0, 5, 6)      # 코·왼어깨·오른어깨 (책상 앞 상반신 기준)
 MIN_KEYPOINT_CONF = 0.5
 
 
+@router.delete("/streams/{key}")
+def drop_stream(request: Request, key: str):
+    """세션 종료·휴식·카메라 끔 → 실시간 버퍼 삭제."""
+    return {"dropped": request.app.state.streams.drop(key)}
+
+
 @router.post("/predict/frame")
-def predict_frame(request: Request, frame: UploadFile = File(...), roi: str = Form("")):
-    """이미지 1장 → 사람(큰 순서로 번호 1, 2…; 프레임마다 새로 매김, 추적 ID 아님)·관절 17개·휴대폰 상자·착석 후보.
-    좌표는 0~1로 정규화."""
+def predict_frame(request: Request, frame: UploadFile = File(...), roi: str = Form(""), stream_key: str = Form(""),
+                  seq: int = Form(0), detect_phone: bool = Form(False)):
+    """이미지 1장 → 사람(큰 순서로 번호 1, 2…; 프레임마다 새로 매김, 추적 ID 아님)·관절 17개·착석 후보.
+    좌표는 0~1로 정규화. stream_key가 있으면 착석 대상 1명의 Feature를 세션 버퍼에 쌓고(seq = 관측 시각 ms),
+    30 Step이 찰 때마다 action_candidates를 돌려준다. detect_phone=true일 때만 휴대폰을 찾는다."""
     start = time.perf_counter()
     region = _parse_roi(roi)
     data = frame.file.read(MAX_FRAME_BYTES + 1)
@@ -68,22 +81,36 @@ def predict_frame(request: Request, frame: UploadFile = File(...), roi: str = Fo
     state = request.app.state
     with _lock:  # 영상 분석과 같은 모델을 공유하므로 한 번에 하나씩
         pose = state.pose.predict(img, verbose=False)[0]
-        det = state.detector.predict(img, classes=[PHONE_CLASS], conf=0.35, verbose=False)[0]
-    persons = []
+        det = state.detector.predict(img, classes=[PHONE_CLASS], conf=0.35, verbose=False)[0] if detect_phone else None
+    persons, raw = [], []
     if len(pose.boxes):
         boxes = pose.boxes.xyxy.cpu().numpy()
         kxy = pose.keypoints.xy.cpu().numpy()
         kconf = pose.keypoints.conf.cpu().numpy()
-        order = np.argsort(-(boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1]))  # 큰 사람 = 촬영 대상
+        order = np.argsort(-(boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1]))  # 큰 사람부터
         for rank, i in enumerate(order, 1):
             persons.append({
-                "track_id": rank,
+                "index": rank,  # 이 프레임 안의 순번. 프레임 사이 같은 사람이라는 보장 없음
                 "box": _norm_box(boxes[i], w, h),
                 "keypoints": [[round(float(x) / w, 4), round(float(y) / h, 4), round(float(c), 3)] for (x, y), c in zip(kxy[i], kconf[i])],
             })
-    phones = [{"box": _norm_box(b, w, h), "confidence": round(float(c), 3)}
-              for b, c in zip(det.boxes.xyxy.cpu().numpy(), det.boxes.conf.cpu().numpy())]
-    return {"persons": persons, "phones": phones, **presence(persons, region),
+            raw.append((kxy[i], kconf[i]))
+    phones = [] if det is None else [{"box": _norm_box(b, w, h), "confidence": round(float(c), 3)}
+                                     for b, c in zip(det.boxes.xyxy.cpu().numpy(), det.boxes.conf.cpu().numpy())]
+    info, target = presence(persons, region)
+
+    candidates, buffer_steps = [], 0
+    if stream_key:
+        # 착석 대상이 정확히 1명일 때만 버퍼에 쌓음 (그 외에는 버퍼를 비워 다른 사람과 섞이지 않게)
+        feature = step_features(*raw[target]) if target is not None else None
+        window, buffer_steps = state.streams.add(stream_key, seq, feature)
+        if window is not None:
+            proba = state.bundle.model.predict_proba(window)[0]
+            candidates = sorted(({"label": c, "probability": round(float(p), 4)} for c, p in zip(state.bundle.classes, proba)),
+                                key=lambda x: -x["probability"])
+    return {"persons": persons, "phones": phones, **info,
+            "action_candidates": candidates, "buffer_steps": buffer_steps,
+            "model_profile": state.bundle.profile, "model_version": state.bundle.version,
             "processing_ms": int((time.perf_counter() - start) * 1000)}
 
 

@@ -279,6 +279,71 @@ class EventServiceTests(TestCase):  # S05
         self.assertIsNone(event_service.record_from_job(self.job, self.preds("drink_return", {"drink_return": 0.4, "other": 0.35, "wave": 0.25})))
 
 
+def cands(drink=0.0, wave=0.0, walk=0.0, other=0.0):
+    p = {"drink_return": drink, "wave": wave, "walk_turn_walk": walk, "other": other}
+    return sorted(({"label": k, "probability": v} for k, v in p.items()), key=lambda c: -c["probability"])
+
+
+@override_settings(EVENT_THRESHOLDS={"DRINK": 0.5, "MOVEMENT": 0.5})
+class RealtimeEventTests(TestCase):  # S05·S06: episode당 1건, 중복·NG 보류
+    def setUp(self):
+        self.user = User.objects.create_user("rio", password="unused-pass-10")
+        with sec(0):
+            self.s = te.start(self.user, te.Mode.AI)
+
+    def window(self, seconds, c, profile="service"):
+        return event_service.record_realtime(self.s, c, profile, "rf-test", T0 + timedelta(seconds=seconds))
+
+    def test_one_event_per_episode_and_cooldown(self):
+        e1 = self.window(10, cands(drink=0.8, other=0.2))
+        self.assertIsNone(self.window(11, cands(drink=0.9, other=0.1)))   # 같은 episode (연속 window)
+        self.assertIsNone(self.window(12, cands(other=0.7, drink=0.3)))   # episode 끝
+        self.assertIsNone(self.window(30, cands(drink=0.8, other=0.2)))   # 재진입했지만 60초 cooldown 안
+        self.assertIsNone(self.window(31, cands(other=0.9)))
+        e2 = self.window(80, cands(drink=0.7, other=0.3))                # cooldown 지남 → 새 기록
+        self.assertEqual((e1.event_type, e1.source, e1.model_version, e1.action_label), ("DRINK", "REALTIME", "rf-test", "drink_return"))
+        self.assertIsNotNone(e2)
+        self.assertEqual(BehaviorEvent.objects.count(), 2)
+
+    def test_ng_low_score_and_course_not_recorded(self):
+        self.assertIsNone(self.window(10, cands(other=0.6, drink=0.4)))  # 기타(타이핑 등) → 보류
+        self.assertIsNone(self.window(11, cands(drink=0.45, other=0.3, wave=0.25)))
+        self.assertIsNone(self.window(12, [{"label": "A001_x", "probability": 0.9}], profile="course"))
+        movement = self.window(13, cands(wave=0.35, walk=0.3, drink=0.2, other=0.15))
+        self.assertEqual((movement.event_type, movement.action_label), ("MOVEMENT", "wave"))
+
+    def test_clip_and_realtime_not_double_counted(self):
+        self.window(10, cands(drink=0.8))
+        job = AnalysisJob.objects.create(user=self.user, input_type="UPLOAD", status="SUCCESS")
+        AnalysisJob.objects.filter(pk=job.pk).update(created_at=T0 + timedelta(seconds=40))
+        job.refresh_from_db()
+        p = [{"track_id": 1, "action_label": "drink_return", "confidence": 0.8, "window_count": 2, "probabilities": {"drink_return": 0.8}}]
+        with override_settings(EVENT_THRESHOLDS={"DRINK": 0.5, "MOVEMENT": 0.5}):
+            self.assertIsNone(event_service.record_from_job(job, p))
+        self.assertEqual(BehaviorEvent.objects.count(), 1)
+
+    def test_paused_session_not_recorded(self):
+        with sec(5):
+            te.pause(self.s)
+        self.assertIsNone(self.window(10, cands(drink=0.9)))
+
+    @mock.patch("study.views.drop_stream")
+    @mock.patch("study.views.predict_frame", return_value={**PRESENT_FRAME, "action_candidates": cands(drink=0.9), "buffer_steps": 30,
+                                                          "model_profile": "service", "model_version": "rf-test"})
+    def test_frames_api_records_realtime_event(self, predict, drop):
+        api = APIClient()
+        api.force_authenticate(self.user)
+        base = f"/api/study/sessions/{self.s.pk}"
+        r = api.post(f"{base}/frames/", {"frame": SimpleUploadedFile("f.jpg", b"jpg", "image/jpeg"), "seq": 7}, format="multipart")
+        self.assertEqual((r.status_code, r.data["recorded_event"], r.data["buffer_steps"]), (200, "DRINK", 30))
+        self.assertEqual(predict.call_args.args[2:], (str(self.s.pk), 7, False))   # stream_key·seq·휴대폰 감지 OFF
+        r = api.post(f"{base}/frames/", {"frame": SimpleUploadedFile("f.jpg", b"jpg", "image/jpeg"), "seq": 6}, format="multipart")
+        self.assertTrue(r.data["ignored"])
+        self.assertEqual(predict.call_count, 1)                                   # 역순 프레임은 AI 서버로 보내지 않음
+        api.post(f"{base}/end/")
+        drop.assert_called_with(str(self.s.pk))
+
+
 class StudyApiTests(TestCase):
     def setUp(self):
         self.alice = User.objects.create_user("alice", password="unused-pass-3")

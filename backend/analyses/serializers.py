@@ -61,6 +61,8 @@ class AnalysisJobSerializer(serializers.ModelSerializer):
         preds = list(job.predictions.all())
         if not preds:
             reason = job.error_message or "분석할 사람을 찾지 못했습니다."
+        elif len(preds) > 1:
+            reason = f"{len(preds)}명이 보여 누구의 습관인지 불명확해 기록을 보류했습니다 (사람별 결과는 아래 표)."
         elif not records_habits(job.model_profile):
             reason = f"{job.model_profile} 모델 결과는 습관 기록에 쓰지 않습니다 (교과 동작 분류 전용)."
         elif all(p.action_label == OTHER_LABEL for p in preds):

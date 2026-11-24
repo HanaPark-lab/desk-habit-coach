@@ -4,7 +4,7 @@
   const { api, errorText, pad } = window.App;
   const $ = (id) => document.getElementById(id);
   const FOCUS_GOAL = 50 * 60;   // 50분 집중 → 휴식 권장
-  const FRAME_MS = 1000;        // 프레임 전송 간격 (CPU 추론 기준 1fps)
+  const FRAME_MS = 1000 / 6;    // 6fps = 실시간 행동 모델 학습 주기 (한 번에 한 요청, 늦으면 그 프레임은 건너뜀)
   const HEARTBEAT_MS = 30000;   // 카메라를 끈 상태의 연결 신호
   const PILL = { STUDY: "집중 모드 ON", BREAK: "휴식 중", AWAY: "자리 비움", UNKNOWN: "연결 확인 중" };
   const EDGES = [[0, 5], [0, 6], [5, 6], [5, 7], [7, 9], [6, 8], [8, 10], [5, 11], [6, 12], [11, 12], [11, 13], [13, 15], [12, 14], [14, 16]];
@@ -134,7 +134,7 @@
       g.fillStyle = "#a6e3a1";
       g.fillRect(x1 * w, y1 * h - 24, 110, 24);
       g.fillStyle = "#16301f";
-      g.fillText(`Track ID: ${p.track_id}`, x1 * w + 6, y1 * h - 7);
+      g.fillText(`사람 ${p.index}`, x1 * w + 6, y1 * h - 7);
       const k = p.keypoints;
       g.strokeStyle = "#c7f59a";
       for (const [a, b] of EDGES) {
@@ -173,6 +173,8 @@
       render(data);
       draw(data.persons, data.phones);
       $("live-status").textContent = { present: "", absent: "· 자리에 사람이 보이지 않아요", unclear: "· 확인 어려움 (가림·여러 명·흐림)" }[data.observation] ?? "";
+      if (data.recorded_event) showAlert({ DRINK: "물 마시기를 기록했어요", MOVEMENT: "움직임을 기록했어요" }[data.recorded_event] || "행동을 기록했어요",
+        "실시간 AI가 인식했어요. 잘못 기록됐다면 리포트 화면에서 정정할 수 있어요.");
       if (data.phone_alert) showAlert("잠깐, 다시 집중해 볼까요?", "휴대폰 사용으로 추정되는 행동이 일정 시간 지속되었어요.");
     } catch (x) {
       $("live-status").textContent = `· ${errorText(x, "분석 서버 연결 실패")}`;

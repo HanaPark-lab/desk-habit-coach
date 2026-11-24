@@ -30,6 +30,8 @@ class StudySession(models.Model):
     last_observed_at = models.DateTimeField(null=True, blank=True, help_text="AI 모드: 마지막 유효 관측(사람 있음/없음이 분명한 프레임) 시각")
     presence_since = models.DateTimeField(null=True, blank=True, help_text="AI 모드: 복귀 후보 시작 시각")
     absent_since = models.DateTimeField(null=True, blank=True, help_text="AI 모드: 부재 후보 시작 시각")
+    realtime_state = models.JSONField(default=dict, blank=True, help_text="AI 모드 실시간 행동: 진행 중 episode·유형별 마지막 기록 시각")
+    phone_detection = models.BooleanField(default=False, help_text="선택 기능: 휴대폰 감지 (순공시간에서 차감하지 않음)")
     phone_since = models.DateTimeField(null=True, blank=True, help_text="집중 모드: 휴대폰이 연속으로 보이기 시작한 시각")
 
     class Meta:
@@ -71,7 +73,7 @@ class StudyInterval(models.Model):
 
 
 class BehaviorEvent(models.Model):
-    """AI가 인식한 행동 1건 (음료·움직임). 분석 작업 1건당 최대 1건 (dedup_key)."""
+    """AI가 인식한 행동 1건 (음료·움직임·휴대폰). 클립 작업 1건당 최대 1건, 실시간은 episode당 1건 (dedup_key)."""
 
     class EventType(models.TextChoices):
         DRINK = "DRINK", "음료 섭취"
@@ -82,9 +84,16 @@ class BehaviorEvent(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="behavior_events")
     session = models.ForeignKey(StudySession, null=True, blank=True, on_delete=models.SET_NULL, related_name="events")
     job = models.ForeignKey("analyses.AnalysisJob", null=True, blank=True, on_delete=models.CASCADE, related_name="events")
+    class Source(models.TextChoices):
+        CLIP = "CLIP", "클립 분석"
+        REALTIME = "REALTIME", "실시간 분석"
+        FOCUS = "FOCUS", "집중 모드(휴대폰)"
+
     action_label = models.CharField(max_length=50, help_text="실제 모델 라벨")
     event_type = models.CharField(max_length=10, choices=EventType.choices)
     confidence = models.FloatField(help_text="모델 점수. 정확도가 아님")
+    source = models.CharField(max_length=10, choices=Source.choices, default=Source.CLIP)
+    model_version = models.CharField(max_length=50, blank=True)
     occurred_at = models.DateTimeField(default=timezone.now)
     dedup_key = models.CharField(max_length=100, unique=True)
     is_valid = models.BooleanField(default=True, help_text="사용자가 오인식으로 정정하면 False (집계 제외)")

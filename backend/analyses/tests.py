@@ -162,16 +162,16 @@ class JudgeTests(SimpleTestCase):
     def test_other_label_is_never_recorded(self):
         self.assertEqual(judge([person(1, probs(drink=0.5, other=0.5), label="other")], THRESHOLDS), "")
 
-    def test_one_record_per_job_highest_person(self):
+    def test_multiple_people_hold_personal_record(self):
         people = [person(1, probs(drink=0.6, wave=0.4)), person(2, probs(drink=0.1, wave=0.9))]
-        self.assertEqual(judge(people, THRESHOLDS), "MOVEMENT")
+        self.assertEqual(judge(people, THRESHOLDS), "")  # 대상이 불명확 → 보류
 
     def test_no_people(self):
         self.assertEqual(judge([], THRESHOLDS), "")
 
     def test_course_profile_never_records(self):
-        course = person(1, {"A001_a": 0.9, "A002_b": 0.1})
-        self.assertEqual(judge([course, person(2, probs(drink=0.9))], THRESHOLDS, "course"), "")
+        self.assertEqual(judge([person(1, {"A001_a": 0.9, "A002_b": 0.1})], THRESHOLDS, "course"), "")
+        self.assertEqual(judge([person(1, probs(drink=0.9))], THRESHOLDS, "course"), "")
 
 
 RESULT = {"model_version": "rf-test", "error_code": "", "message": "", "predictions": [person(1, probs(drink=0.8, wave=0.2))]}

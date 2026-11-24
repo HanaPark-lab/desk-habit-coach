@@ -34,9 +34,19 @@ def predict_video(path):
     return body
 
 
-def predict_frame(image_bytes, roi=None):
-    """집중 모드 프레임 1장 → FastAPI /predict/frame 결과 (persons, phones, presence_candidate…). 저장하지 않음."""
-    data = {"roi": ",".join(str(v) for v in roi)} if roi else {}
+def drop_stream(key):
+    """실시간 버퍼 삭제 (세션 종료·휴식·카메라 끔). 실패해도 FastAPI가 TTL로 정리하므로 무시."""
+    try:
+        requests.delete(f"{settings.FASTAPI_URL}/streams/{key}", timeout=(1, 2))
+    except requests.RequestException:
+        pass
+
+
+def predict_frame(image_bytes, roi=None, stream_key="", seq=0, detect_phone=False):
+    """집중 모드 프레임 1장 → FastAPI /predict/frame 결과 (착석 후보·관절·행동 후보…). 저장하지 않음."""
+    data = {"stream_key": stream_key, "seq": seq, "detect_phone": str(bool(detect_phone)).lower()}
+    if roi:
+        data["roi"] = ",".join(str(v) for v in roi)
     try:
         r = requests.post(
             f"{settings.FASTAPI_URL}/predict/frame",

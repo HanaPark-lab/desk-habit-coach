@@ -34,11 +34,18 @@ def top_event(probabilities, profile=SERVICE_PROFILE):
     return event, scores[event]
 
 
+def event_label(probabilities, event, profile=SERVICE_PROFILE):
+    """행동(DRINK 등)에 속한 실제 모델 라벨 중 확률이 가장 높은 것."""
+    return max(PROFILE_EVENT_LABELS[profile or SERVICE_PROFILE][event], key=lambda label: probabilities.get(label, 0.0))
+
+
 def judge(predictions, thresholds, profile=SERVICE_PROFILE):
     """사람별 결과 목록 → 기록할 행동 1개 (없으면 "").
 
-    사람마다 점수가 가장 높은 행동을 고르고, 기준값을 넘은 것 중 가장 높은 1개만 기록한다 (작업당 최대 1건).
+    개인 습관 기록이므로 사람이 정확히 1명일 때만 판단한다 (여러 명이면 대상이 불명확해 보류).
     """
+    if len(predictions) != 1:
+        return ""
     best, best_score = "", 0.0
     for p in predictions:
         if p["action_label"] == OTHER_LABEL:

@@ -90,9 +90,12 @@ def test_too_short(client, tmp_path):
 
 def test_frame_people_and_phone_fields(client):
     ok, jpg = cv2.imencode(".jpg", PEOPLE_IMG)
-    body = client.post("/predict/frame", files={"frame": ("f.jpg", jpg.tobytes(), "image/jpeg")}).json()
-    assert body["persons"] and body["persons"][0]["track_id"] == 1 and len(body["persons"][0]["keypoints"]) == 17
+    body = client.post("/predict/frame", files={"frame": ("f.jpg", jpg.tobytes(), "image/jpeg")},
+                       data={"detect_phone": "true", "stream_key": "t", "seq": 1}).json()
+    assert body["persons"] and body["persons"][0]["index"] == 1 and len(body["persons"][0]["keypoints"]) == 17
     assert all(0 <= v <= 1 for v in body["persons"][0]["box"]) and isinstance(body["phones"], list)
+    assert body["action_candidates"] == [] and body["buffer_steps"] == 0  # 여러 명 → 버퍼에 쌓지 않음
+    assert body["model_profile"] == "service" and body["model_version"]
 
 
 def test_presence_rules():
@@ -102,10 +105,53 @@ def test_presence_rules():
     me = {"box": [0.3, 0.1, 0.7, 0.9], "keypoints": good}
     side = {"box": [0.85, 0.1, 0.99, 0.9], "keypoints": good}  # 중심이 ROI 밖
     roi = (0.1, 0.0, 0.8, 1.0)
-    assert presence([me, side], roi) == {"track_count": 1, "quality_passed": True, "presence_candidate": True}
-    assert presence([], roi) == {"track_count": 0, "quality_passed": True, "presence_candidate": False}  # 분명히 없음
-    assert presence([me, {**me, "box": [0.2, 0.1, 0.6, 0.9]}], roi)["presence_candidate"] is False     # 다중 인물
-    assert presence([{**me, "keypoints": blurry}], roi)["quality_passed"] is False                     # 가림·흐림
+    assert presence([side, me], roi) == ({"track_count": 1, "quality_passed": True, "presence_candidate": True}, 1)
+    assert presence([], roi) == ({"track_count": 0, "quality_passed": True, "presence_candidate": False}, None)  # 분명히 없음
+    assert presence([me, {**me, "box": [0.2, 0.1, 0.6, 0.9]}], roi)[0]["presence_candidate"] is False          # 다중 인물
+    assert presence([{**me, "keypoints": blurry}], roi)[0]["quality_passed"] is False                          # 가림·흐림
+
+
+def test_stream_buffer_6fps_window_and_reset():
+    from services import stream_buffer as sb
+    buf, f = sb.StreamBuffers(), np.ones(FEATURES_PER_STEP, np.float32)
+    step = sb.STEP_MS
+    outs = [buf.add("s", i * step, f)[0] for i in range(42)]
+    hits = [i for i, w in enumerate(outs) if w is not None]
+    assert hits == [29, 35, 41] and outs[29].shape == (1, 1140)        # 30 Step에서 첫 Window, 이후 6 Step마다
+    assert buf.add("s", 41 * step + 20, f) == (None, 30)               # 6fps보다 빠름 → 건너뜀
+    assert buf.add("s", 41 * step + step * 3, f)[1] == 1               # 2 Step 넘게 빔 → 복제 없이 처음부터
+    assert buf.add("s", 45 * step, None) == (None, 0)                  # 대상 불분명 → 비움
+    assert buf.drop("s") and not buf.drop("s")
+
+
+def test_stream_buffer_limits(monkeypatch):
+    from services import stream_buffer as sb
+    monkeypatch.setattr(sb, "MAX_STREAMS", 3)
+    buf = sb.StreamBuffers()
+    for k in "abcd":
+        buf.add(k, 0, None)
+    assert len(buf) == 3                                              # 가장 오래된 버퍼부터 제거
+    monkeypatch.setattr(sb, "STREAM_TTL", -1)
+    buf.add("e", 0, None)
+    assert len(buf) == 1                                              # TTL 지난 버퍼 정리
+
+
+def test_realtime_window_from_single_person_frames(client):
+    one = cv2.imread(str(Path(ultralytics.__file__).parent / "assets" / "zidane.jpg"))[:, :600]  # 1명만 보이게 자름
+    jpg = cv2.imencode(".jpg", one)[1].tobytes()
+    send = lambda i: client.post("/predict/frame", files={"frame": ("f.jpg", jpg, "image/jpeg")},
+                                 data={"stream_key": "rt-test", "seq": int(i * 1000 / 6)}).json()
+    bodies = [send(i) for i in range(30)]
+    assert bodies[0]["presence_candidate"] and bodies[28]["buffer_steps"] == 29 and bodies[28]["action_candidates"] == []
+    cands = bodies[29]["action_candidates"]                              # 30 Step(6fps 5초)에서 첫 결과
+    assert [c["label"] for c in cands] and abs(sum(c["probability"] for c in cands) - 1) < 1e-3
+    client.delete("/streams/rt-test")
+
+
+def test_delete_stream(client):
+    client.app.state.streams.add("k1", 0, None)
+    assert client.delete("/streams/k1").json() == {"dropped": True}
+    assert client.delete("/streams/k1").json() == {"dropped": False}
 
 
 def test_frame_roi_param(client):

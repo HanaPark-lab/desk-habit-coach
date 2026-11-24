@@ -11,6 +11,7 @@ from ultralytics import YOLO
 
 from routers.predictions import router as predictions_router
 from services.model_loader import load_bundle
+from services.stream_buffer import StreamBuffers
 
 MODEL_DIR = Path(os.getenv("MODEL_DIR", Path(__file__).resolve().parent / "models"))
 MODEL_PROFILE = os.getenv("MODEL_PROFILE", "service")  # service(자체 4종) | course(교과 6종)
@@ -23,6 +24,7 @@ async def lifespan(app):
     app.state.bundle = load_bundle(MODEL_DIR, MODEL_PROFILE)  # 서버 시작 시 1번만 로드, 요청마다 재사용
     app.state.pose = YOLO(POSE_WEIGHTS)
     app.state.detector = YOLO(DETECT_WEIGHTS)
+    app.state.streams = StreamBuffers()  # 실시간 세션 버퍼 (메모리. 단일 프로세스로 운영, 재시작 시 초기화)
     yield
 
 
@@ -40,4 +42,5 @@ def health():
         "model_version": b.version if b else None,
         "classes": b.classes if b else [],
         "feature_count": int(b.model.n_features_in_) if b else 0,
+        "streams": len(getattr(app.state, "streams", ())),
     }

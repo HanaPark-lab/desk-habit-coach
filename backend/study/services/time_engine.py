@@ -148,18 +148,20 @@ def end(session):
     return _change(session, {Status.ACTIVE, Status.PAUSED}, Status.ENDED, "이미 종료된 세션입니다.")
 
 
-def set_mode(session, mode, roi=None):
+def set_mode(session, mode, roi=None, phone_detection=None):
     """수동 ↔ AI 전환 (카메라 켜기/끄기). 공부 중이면 지금부터 새 모드의 진입 구간을 연다."""
     now = timezone.now()
     with transaction.atomic():
         s = _locked(session)
         if roi is not None:
             s.roi = roi
+        if phone_detection is not None:
+            s.phone_detection = phone_detection
         if s.mode != mode:
             _settle_gap(s, now)
             s.mode = mode
             _reset_candidates(s)
-            s.last_observed_at = None
+            s.last_observed_at, s.realtime_state = None, {}
             if s.status == Status.ACTIVE:
                 state, source = _entry(mode)
                 _switch(s, _current(s), state, now, source)
@@ -232,7 +234,7 @@ def observe(session, seq, kind, phone_confidence=None):
                     dedup_key=f"phone:{s.pk}:{s.phone_since.isoformat()}",
                     defaults={"user": s.user, "session": s, "action_label": "cell_phone",
                               "event_type": BehaviorEvent.EventType.PHONE, "confidence": phone_confidence,
-                              "occurred_at": s.phone_since},
+                              "occurred_at": s.phone_since, "source": BehaviorEvent.Source.FOCUS},
                 )
         else:
             s.phone_since = None
