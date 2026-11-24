@@ -1,4 +1,4 @@
-{% load static %}<!doctype html>
+{% load static action_labels %}<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="utf-8">
@@ -37,6 +37,8 @@
     {% if user.is_staff %}<a href="{% url 'staff_dashboard' %}" {% if '/staff/' in request.path %}aria-current="page"{% endif %}>관리</a>{% endif %}
   </nav>
   {% endif %}
+  {% action_names as action_display_names %}
+  {{ action_display_names|json_script:"action-display-names" }}
   <script src="{% static 'js/common.js' %}"></script>
   {% block scripts %}{% endblock %}
 </body>

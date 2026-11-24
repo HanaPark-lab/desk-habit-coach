@@ -1,5 +1,7 @@
 // 모든 화면 공통: API 호출(CSRF 포함), DOM 생성, 시간 표시. 사용자 데이터는 textContent로만 넣는다.
 window.App = (() => {
+  const actionNames = JSON.parse(document.getElementById("action-display-names").textContent);
+  const actionName = (label) => Object.hasOwn(actionNames, label) ? actionNames[label] : label;
   const csrf = (document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/) || [])[1] || "";
 
   async function api(url, options = {}) {
@@ -31,5 +33,5 @@ window.App = (() => {
     return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
-  return { api, errorText, el, hms, hm, time, pad };
+  return { api, errorText, el, hms, hm, time, pad, actionName };
 })();
