@@ -1,0 +1,36 @@
+{
+  "model_version": "rf-2026-11-24-other",
+  "is_dummy": false,
+  "classes": [
+    "drink_return",
+    "other",
+    "walk_turn_walk",
+    "wave"
+  ],
+  "action_ids": {
+    "A001": "drink_return",
+    "A002": "wave",
+    "A003": "walk_turn_walk",
+    "X***": "other"
+  },
+  "sequence_steps": 30,
+  "features_per_step": 38,
+  "n_features": 1140,
+  "target_fps": 6.0,
+  "window_stride_steps": 6,
+  "sklearn_version": "1.9.1",
+  "created_at": "2026-11-24",
+  "train_clips": 70,
+  "train_windows": 268,
+  "persons": [
+    "P01",
+    "P02",
+    "P03"
+  ],
+  "cv_action_accuracy": 0.8,
+  "cv_other_rejection": 0.8,
+  "suggested_thresholds": {
+    "DRINK": 0.56,
+    "MOVEMENT": 0.64
+  }
+}

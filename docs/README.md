@@ -1,0 +1,12 @@
+# DESK HABIT COACH — 설계 문서 v2.0
+공부 시간(착석 기반 추정)과 음료·움직임을 자동 기록하는 AI 서비스. 미션 인증형 v1.1을 대체한다.
+
+- [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+- [ERD.md](ERD.md)
+- [API_SPECIFICATION.md](API_SPECIFICATION.md)
+- [AI_PIPELINE.md](AI_PIPELINE.md)
+- [DATA_COLLECTION.md](DATA_COLLECTION.md)
+- [MODEL_EVALUATION.md](MODEL_EVALUATION.md)
+- [TEST_CASES.md](TEST_CASES.md)
+- [UI_UX.md](UI_UX.md)

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}기록 · desk habit.{% endblock %}
+{% block content %}
+<h1>활동 기록</h1>
+<p class="muted">최근 7일. 시간은 버튼·화면 연결 기준 추정이며, 행동 횟수는 AI가 기록한 뒤 정정한 것을 뺀 값입니다.</p>
+
+<section class="card" aria-labelledby="days-title">
+  <h2 id="days-title">일별 시간·행동</h2>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th scope="col">날짜</th><th scope="col">순공</th><th scope="col">휴식</th><th scope="col">자리 비움</th><th scope="col">확인 불가</th><th scope="col">음료</th><th scope="col">움직임</th></tr></thead>
+      <tbody>
+      {% for d in days %}
+        <tr>
+          <td>{{ d.date|date:"m/d (D)" }}</td>
+          <td data-sec="{{ d.seconds.STUDY }}"></td><td data-sec="{{ d.seconds.BREAK }}"></td>
+          <td data-sec="{{ d.seconds.AWAY }}"></td><td data-sec="{{ d.seconds.UNKNOWN }}"></td>
+          <td>{{ d.events.DRINK }}</td><td>{{ d.events.MOVEMENT }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card" aria-labelledby="events-title">
+  <h2 id="events-title">AI 행동 기록 <small class="muted">(잘못 인식된 기록은 정정하면 집계에서 빠집니다)</small></h2>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th scope="col">시각</th><th scope="col">행동</th><th scope="col">모델 라벨</th><th scope="col">점수</th><th scope="col">분석</th><th scope="col">정정</th></tr></thead>
+      <tbody>
+      {% for e in events %}
+        <tr class="{% if not e.is_valid %}invalid{% endif %}">
+          <td>{{ e.occurred_at|date:"m-d H:i" }}</td>
+          <td>{{ e.get_event_type_display }}</td>
+          <td>{{ e.action_label }}</td>
+          <td>{{ e.confidence|floatformat:2 }}</td>
+          <td>{% if e.job_id %}<a href="{% url 'analyses_detail' e.job_id %}">보기</a>{% else %}-{% endif %}</td>
+          <td><button type="button" class="chip" data-event="{{ e.id }}" data-valid="{{ e.is_valid|yesno:'1,0' }}">{% if e.is_valid %}오인식으로 표시{% else %}정정 취소{% endif %}</button></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="muted">최근 7일 행동 기록이 없습니다.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="error" id="report-error" role="alert"></p>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/reports.js' %}"></script>{% endblock %}

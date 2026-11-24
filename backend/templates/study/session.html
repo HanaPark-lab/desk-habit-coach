@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}집중 모드 · desk habit.{% endblock %}
+{% block content %}
+<div class="focus-head">
+  <h1>집중 모드</h1>
+  <span class="pill" id="focus-pill">대기</span>
+</div>
+
+<div class="focus-cards">
+  <section class="hero compact" aria-labelledby="focus-title">
+    <p id="focus-title" class="hero-label">현재 집중 세션</p>
+    <p class="hero-time" id="focus-clock">00:00</p>
+    <div class="bar hero-bar" role="progressbar" aria-label="집중 목표 50분 대비" aria-valuemin="0" aria-valuemax="100"><span id="focus-bar" style="width: 0%"></span></div>
+    <p class="hero-sub">목표 50분</p>
+  </section>
+  <section class="card soft-card" aria-labelledby="break-title">
+    <p id="break-title" class="stat-label">다음 휴식까지</p>
+    <p class="countdown" id="break-countdown">50:00</p>
+  </section>
+</div>
+
+<section class="live" aria-labelledby="live-title">
+  <div class="live-frame">
+    <video id="camera" autoplay playsinline muted hidden></video>
+    <canvas id="overlay" aria-hidden="true"></canvas>
+    <span class="live-badge" id="live-badge" hidden>● LIVE</span>
+    <p class="live-empty" id="live-empty">카메라를 켜면 AI가 1초마다 자리·자세·휴대폰을 확인합니다.<br>영상은 저장하거나 기록하지 않습니다.</p>
+  </div>
+  <div class="live-foot">
+    <span id="live-title">AI 실시간 동작 감지 <small id="live-status"></small></span>
+    <button type="button" class="chip" id="btn-camera">카메라 켜기</button>
+  </div>
+</section>
+
+<section class="alert-card" id="alert" role="status" hidden>
+  <h2 id="alert-title">잠깐, 다시 집중해 볼까요?</h2>
+  <p id="alert-text"></p>
+  <p class="note">AI 코치 · 방금 전</p>
+</section>
+
+<div class="tiles focus-tiles">
+  <div class="tile plain"><div class="tile-label">집중 추정 시간</div><div class="tile-value" id="t-study">0분</div></div>
+  <div class="tile plain"><div class="tile-label">집중 이탈 감지</div><div class="tile-value" id="t-phone">0회</div></div>
+  <div class="tile plain"><div class="tile-label">음료 섭취 (오늘)</div><div class="tile-value">{{ drinks_today }}회</div></div>
+</div>
+
+<div class="focus-actions">
+  <button type="button" class="btn-primary" id="btn-start">집중 모드 시작</button>
+  <button type="button" class="btn-ghost" id="btn-pause" hidden>일시정지</button>
+  <button type="button" class="btn-primary" id="btn-resume" hidden>다시 집중</button>
+  <button type="button" class="btn-primary" id="btn-end" hidden>세션 종료</button>
+</div>
+<p class="error" id="study-error" role="alert"></p>
+<p class="note">자리 비움은 카메라에 사람이 5초 넘게 보이지 않을 때, 집중 이탈은 휴대폰이 10초 넘게 계속 보일 때 기록됩니다.
+  카메라를 끄면 30초마다 연결만 확인하며, 연결이 90초 넘게 끊긴 시간은 '확인 불가'로 기록됩니다. <a href="{% url 'analyses_new' %}">음료·움직임 영상으로 기록하기</a></p>
+
+{{ open_session_id|json_script:"open-session" }}
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/study.js' %}"></script>{% endblock %}

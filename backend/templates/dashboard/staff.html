@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}관리자 대시보드 · desk habit.{% endblock %}
+{% block content %}
+<h1 class="admin-title">desk habit. Admin <small class="muted">관리자</small></h1>
+<p class="muted">PostgreSQL에서 실시간으로 집계한 값입니다. 새로고침하면 갱신됩니다.</p>
+
+<div class="stats two">
+  <div class="stat"><div class="stat-label">전체 사용자</div><div class="stat-value">{{ stats.users }}<small>명</small></div></div>
+  <div class="stat"><div class="stat-label">전체 분석 작업</div><div class="stat-value">{{ stats.total }}<small>건</small></div></div>
+  <div class="stat">
+    <div class="stat-label">분석 처리 성공률</div>
+    <div class="stat-value">{% if stats.success_rate is not None %}{{ stats.success_rate }}<small>%</small>{% else %}-{% endif %}</div>
+    <div class="note">완료 {{ stats.success }} · 실패 {{ stats.failure }} · 평균 {% if stats.avg_seconds is not None %}{{ stats.avg_seconds }}초{% else %}-{% endif %}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">행동 기록률</div>
+    <div class="stat-value">{% if stats.record_rate is not None %}{{ stats.record_rate }}<small>%</small>{% else %}-{% endif %}</div>
+    <div class="note">완료 작업 중 음료·움직임이 기록된 비율</div>
+  </div>
+</div>
+
+<section class="card" aria-labelledby="status-title">
+  <h2 id="status-title">분석 결과 분포 <small class="muted">(작업 상태별 건수)</small></h2>
+  <div class="donut-row">
+    <div class="donut">
+      <canvas id="status-chart" role="img" aria-label="분석 결과 분포 원형그래프. 값은 옆 범례에 있습니다."></canvas>
+      <div class="donut-center"><strong>{{ stats.total }}</strong><span>전체 작업</span></div>
+    </div>
+    <ul class="legend">
+      {% for s in segments %}
+        <li><span class="dot" style="background: {{ s.color }}"></span>{{ s.label }} <small class="muted">{{ s.status }}</small><b>{{ s.count }}건</b></li>
+      {% endfor %}
+    </ul>
+  </div>
+  <p class="note">기록 안 함 = 분석은 끝났지만 기준 미달·기타 동작·사람 없음. 실패 = 파일·카메라·AI 서버 오류.</p>
+</section>
+
+<section class="card" aria-labelledby="action-title">
+  <h2 id="action-title">동작별 예측 건수 <small class="muted">(사람별 대표 예측)</small></h2>
+  <ul class="barlist">
+    {% for a in actions %}
+      <li>
+        <span>{{ a.name }}</span>
+        <span class="bl-track" role="img" aria-label="{{ a.name }} {{ a.count }}건"><span class="bl-fill" style="width: {{ a.pct }}%"></span></span>
+        <span class="bl-value">{{ a.count }}</span>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+
+<section class="card" aria-labelledby="recent-title">
+  <h2 id="recent-title">최근 분석 작업</h2>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th scope="col">Job ID</th><th scope="col">사용자</th><th scope="col">동작</th><th scope="col">상태</th><th scope="col">행동 기록</th><th scope="col">시각</th></tr></thead>
+      <tbody>
+      {% for r in recent %}
+        <tr>
+          <td><a class="mono" href="{% url 'admin:analyses_analysisjob_change' r.job.pk %}">{{ r.short_id }}</a></td>
+          <td>{{ r.job.user.username }}</td>
+          <td>{{ r.action }}</td>
+          <td><span class="tag {% if r.job.status == 'SUCCESS' %}ok{% elif r.job.status == 'FAILURE' %}fail{% endif %}">{{ r.job.status }}</span></td>
+          <td>{% for e in r.job.events.all %}{{ e.get_event_type_display }}{% empty %}-{% endfor %}</td>
+          <td>{{ r.job.created_at|date:"m-d H:i" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="muted">아직 분석 작업이 없습니다.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{{ chart_data|json_script:"chart-data" }}
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/dashboard.js' %}"></script>
+{% endblock %}

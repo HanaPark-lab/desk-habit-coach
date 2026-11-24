@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}분석 결과 · desk habit.{% endblock %}
+{% block content %}
+<p><a href="{% url 'analyses_list' %}">← 내 분석 작업</a></p>
+<h1>분석 결과</h1>
+<div class="grid" id="job-detail" data-job-id="{{ job.pk }}">
+  <section class="card" aria-labelledby="status-title">
+    <h2 id="status-title">분석 상태</h2>
+    <ol id="steps" class="steps">
+      <li data-step="PENDING">대기</li>
+      <li data-step="STARTED">분석 중</li>
+      <li data-step="DONE">완료</li>
+    </ol>
+    <p id="status-text" class="muted" aria-live="polite">불러오는 중…</p>
+    <h2>사람별 결과</h2>
+    <div id="result" aria-live="polite"></div>
+    <p class="note">모델 점수는 정확도가 아닙니다. 기준을 넘은 경우에만 행동이 기록됩니다.</p>
+  </section>
+
+  <section class="card" aria-labelledby="edit-title">
+    <h2 id="edit-title">제목·메모</h2>
+    <form id="edit-form" novalidate>
+      <label>제목 <input name="title" maxlength="150" value="{{ job.title }}"></label>
+      <label>메모 <textarea name="memo" rows="3">{{ job.memo }}</textarea></label>
+      <p id="edit-msg" class="note" role="status"></p>
+      <button type="submit" class="primary">저장</button>
+      <button type="button" class="chip danger" id="btn-delete">작업 삭제</button>
+    </form>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/analyses.js' %}"></script>{% endblock %}

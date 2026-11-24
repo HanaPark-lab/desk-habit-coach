@@ -1,0 +1,31 @@
+# 지금은 DB·Redis만 실행. 11단계에서 django·fastapi·celery를 추가해 5개 서비스로 완성한다.
+# 실행: docker compose up -d   (값은 .env에서 읽음)
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data   # 컨테이너를 지워도 데이터 유지 (T10)
+    ports:
+      - "127.0.0.1:${DATABASE_PORT:-5442}:5432"   # 개발용. 이 PC에서만 접속 (5432는 다른 프로젝트가 사용 중)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    ports:
+      - "127.0.0.1:${REDIS_HOST_PORT:-6389}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:
