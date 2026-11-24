@@ -20,7 +20,7 @@ flowchart TB
    Y[YOLO Pose / Tracking]
    P[ROI·착석 후보·관절 품질]
    BUF[세션별 30-step 버퍼 6fps]
-   RF[Random Forest 프로필 service/course]
+   RF[자체 학습 Random Forest 4종 service]
    Y --> P
    Y --> BUF --> RF
   end
@@ -100,7 +100,7 @@ sequenceDiagram
  participant F as FastAPI
  participant P as PostgreSQL
  B->>D: 세션 시작 / 카메라 켜기 → mode=AI (UNKNOWN 진입)
- loop 6fps, 한 번에 한 요청
+ loop 목표 6fps, 한 번에 한 요청
  B->>D: frame + seq(증가)
  D->>D: seq ≤ last_seq 이면 무시 (FastAPI 호출 안 함)
  D->>F: frame + roi + stream_key + seq
@@ -112,7 +112,7 @@ sequenceDiagram
  D->>F: DELETE /streams/{key}
  D->>P: 구간 확정 (pending은 AWAY)
 ```
-측정(CPU 20코어, 640×480): `/predict/frame` p50 53ms · p95 60ms → 6fps 유지 가능. 원본 프레임은 저장하지 않는다. 페이지를 떠나면 카메라 track을 정지한다.
+브라우저는 초당 약 6회 전송을 시도하고 진행 중인 요청이 있으면 건너뛴다. 처리율은 장치와 연결에 따라 달라진다. 실제 측정은 [최종 테스트 보고서](FINAL_TEST_REPORT.md)를 참조한다. 원본 프레임은 저장하지 않는다. 페이지를 떠나면 카메라 track을 정지한다.
 
 ## 시간 상태 머신 (AI 모드)
 ```mermaid

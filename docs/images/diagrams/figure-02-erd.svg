@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 850" role="img" aria-labelledby="title desc">
+<title id="title">데이터베이스 ERD</title>
+<desc id="desc">Django 사용자, 날짜별 활동, 공부 세션과 상태 구간, 분석 작업과 사람별 예측, 행동 기록 관계. 실선은 필수 외래 키, 점선은 선택 외래 키다.</desc>
+<defs>
+<marker id="base" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#315d49"/></marker>
+<marker id="clip" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#805515"/></marker>
+<marker id="live" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#40677a"/></marker>
+</defs>
+<g font-family="system-ui, Noto Sans CJK KR, Malgun Gothic, sans-serif">
+<rect x="0" y="0" width="1120" height="850" rx="22" fill="#f5f5f0" stroke="none"/>
+<text x="40" y="52" fill="#315d49" font-size="30" font-weight="700" text-anchor="start">데이터베이스 ERD</text>
+<rect x="40" y="70" width="19" height="19" rx="4" fill="#e3ede6" stroke="#c9d1c8"/>
+<text x="67" y="86" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">사용자·접속</text>
+<rect x="238" y="70" width="19" height="19" rx="4" fill="#f3ebd9" stroke="#c9d1c8"/>
+<text x="265" y="86" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">공부 시간</text>
+<rect x="438" y="70" width="19" height="19" rx="4" fill="#ebe7f3" stroke="#c9d1c8"/>
+<text x="465" y="86" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">영상 분석</text>
+<rect x="644" y="70" width="19" height="19" rx="4" fill="#e4edf1" stroke="#c9d1c8"/>
+<text x="671" y="86" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">행동 기록</text>
+<text x="838" y="85" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">실선 필수 · 점선 선택 FK</text>
+<path d="M422 161 H52 V567 H83" fill="none" stroke="#315d49" stroke-width="2.2" stroke-linejoin="round"/>
+<path d="M455 244 V262 H208 V293" fill="none" stroke="#315d49" stroke-width="2.2" stroke-linejoin="round"/>
+<path d="M562 244 V293" fill="none" stroke="#315d49" stroke-width="2.2" stroke-linejoin="round"/>
+<path d="M665 244 V262 H903 V293" fill="none" stroke="#315d49" stroke-width="2.2" stroke-linejoin="round"/>
+<path d="M563 477 V533" fill="none" stroke="#315d49" stroke-width="2.2" stroke-linejoin="round"/>
+<path d="M904 473 V533" fill="none" stroke="#315d49" stroke-width="2.2" stroke-linejoin="round"/>
+<path d="M690 388 H765" fill="none" stroke="#315d49" stroke-width="2.2" stroke-linejoin="round" stroke-dasharray="7 5"/>
+<path d="M426 422 H376 V513 H326 V541" fill="none" stroke="#315d49" stroke-width="2.2" stroke-linejoin="round" stroke-dasharray="7 5"/>
+<path d="M1042 443 H1080 V803 H207 V751" fill="none" stroke="#315d49" stroke-width="2.2" stroke-linejoin="round" stroke-dasharray="7 5"/>
+<rect x="422" y="111" width="279" height="133" rx="12" fill="#fff" stroke="#c9d1c8"/>
+<rect x="422" y="111" width="279" height="40" rx="10" fill="#e3ede6" stroke="#c9d1c8"/>
+<text x="435" y="139" fill="#315d49" font-size="20" font-weight="700" text-anchor="start">auth_user</text>
+<text x="435" y="175" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">PK  id · integer</text>
+<text x="435" y="197" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">username · date_joined</text>
+<text x="435" y="219" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">last_login</text>
+<rect x="83" y="293" width="274" height="147" rx="12" fill="#fff" stroke="#c9d1c8"/>
+<rect x="83" y="293" width="274" height="40" rx="10" fill="#e3ede6" stroke="#c9d1c8"/>
+<text x="96" y="321" fill="#315d49" font-size="20" font-weight="700" text-anchor="start">DailyUserActivity</text>
+<text x="96" y="357" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">PK  id · bigint</text>
+<text x="96" y="379" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">FK  user_id</text>
+<text x="96" y="401" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">day · logged_in · last_seen_at</text>
+<text x="96" y="423" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">고유 (day, user_id)</text>
+<rect x="426" y="293" width="264" height="184" rx="12" fill="#fff" stroke="#c9d1c8"/>
+<rect x="426" y="293" width="264" height="40" rx="10" fill="#f3ebd9" stroke="#c9d1c8"/>
+<text x="439" y="321" fill="#315d49" font-size="20" font-weight="700" text-anchor="start">StudySession</text>
+<text x="439" y="357" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">PK  id · UUID</text>
+<text x="439" y="379" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">FK  user_id</text>
+<text x="439" y="401" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">status · mode</text>
+<text x="439" y="423" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">started_at · ended_at</text>
+<text x="439" y="445" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">last_seen_at</text>
+<text x="439" y="467" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">last_observed_at</text>
+<rect x="765" y="293" width="277" height="180" rx="12" fill="#fff" stroke="#c9d1c8"/>
+<rect x="765" y="293" width="277" height="40" rx="10" fill="#ebe7f3" stroke="#c9d1c8"/>
+<text x="778" y="321" fill="#315d49" font-size="20" font-weight="700" text-anchor="start">AnalysisJob</text>
+<text x="778" y="357" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">PK  id · UUID</text>
+<text x="778" y="379" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">FK  user_id · session_id?</text>
+<text x="778" y="401" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">input_type · status</text>
+<text x="778" y="423" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">video_file · model_profile</text>
+<text x="778" y="445" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">created_at · started_at</text>
+<text x="778" y="467" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">finished_at · error_code</text>
+<rect x="83" y="541" width="274" height="210" rx="12" fill="#fff" stroke="#c9d1c8"/>
+<rect x="83" y="541" width="274" height="40" rx="10" fill="#e4edf1" stroke="#c9d1c8"/>
+<text x="96" y="569" fill="#315d49" font-size="20" font-weight="700" text-anchor="start">BehaviorEvent</text>
+<text x="96" y="605" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">PK  id · UUID</text>
+<text x="96" y="627" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">FK  user_id</text>
+<text x="96" y="649" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">FK  session_id? · job_id?</text>
+<text x="96" y="671" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">event_type · action_label</text>
+<text x="96" y="693" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">source · confidence</text>
+<text x="96" y="715" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">occurred_at · is_valid</text>
+<text x="96" y="737" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">dedup_key · 고유</text>
+<rect x="426" y="533" width="264" height="148" rx="12" fill="#fff" stroke="#c9d1c8"/>
+<rect x="426" y="533" width="264" height="40" rx="10" fill="#f3ebd9" stroke="#c9d1c8"/>
+<text x="439" y="561" fill="#315d49" font-size="20" font-weight="700" text-anchor="start">StudyInterval</text>
+<text x="439" y="597" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">PK  id · bigint</text>
+<text x="439" y="619" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">FK  session_id</text>
+<text x="439" y="641" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">state · source</text>
+<text x="439" y="663" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">started_at · ended_at</text>
+<rect x="765" y="533" width="277" height="170" rx="12" fill="#fff" stroke="#c9d1c8"/>
+<rect x="765" y="533" width="277" height="40" rx="10" fill="#ebe7f3" stroke="#c9d1c8"/>
+<text x="778" y="561" fill="#315d49" font-size="20" font-weight="700" text-anchor="start">PersonPrediction</text>
+<text x="778" y="597" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">PK  id · bigint</text>
+<text x="778" y="619" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">FK  job_id</text>
+<text x="778" y="641" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">track_id · action_label</text>
+<text x="778" y="663" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">confidence · probabilities</text>
+<text x="778" y="685" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">고유 (job_id, track_id)</text>
+<text x="397" y="151" fill="#315d49" font-size="15" font-weight="700" text-anchor="start" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">1</text>
+<text x="55" y="550" fill="#315d49" font-size="15" font-weight="700" text-anchor="start" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">0..N</text>
+<text x="432" y="259" fill="#315d49" font-size="15" font-weight="700" text-anchor="start" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">1</text>
+<text x="216" y="286" fill="#315d49" font-size="15" font-weight="700" text-anchor="start" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">0..N</text>
+<text x="572" y="260" fill="#315d49" font-size="15" font-weight="700" text-anchor="start" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">1</text>
+<text x="573" y="286" fill="#315d49" font-size="15" font-weight="700" text-anchor="start" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">0..N</text>
+<text x="677" y="259" fill="#315d49" font-size="15" font-weight="700" text-anchor="start" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">1</text>
+<text x="913" y="286" fill="#315d49" font-size="15" font-weight="700" text-anchor="start" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">0..N</text>
+<text x="573" y="498" fill="#315d49" font-size="15" font-weight="700" text-anchor="start" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">1</text>
+<text x="573" y="524" fill="#315d49" font-size="15" font-weight="700" text-anchor="start" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">0..N</text>
+<text x="913" y="497" fill="#315d49" font-size="15" font-weight="700" text-anchor="start" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">1</text>
+<text x="913" y="524" fill="#315d49" font-size="15" font-weight="700" text-anchor="start" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">0..N</text>
+<text x="695" y="378" fill="#315d49" font-size="15" font-weight="700" text-anchor="start" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">0..1</text>
+<text x="724" y="411" fill="#315d49" font-size="15" font-weight="700" text-anchor="start" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">0..N</text>
+<text x="385" y="411" fill="#315d49" font-size="15" font-weight="700" text-anchor="start" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">0..1</text>
+<text x="337" y="533" fill="#315d49" font-size="15" font-weight="700" text-anchor="start" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">0..N</text>
+<text x="1044" y="432" fill="#315d49" font-size="15" font-weight="700" text-anchor="start" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">0..1</text>
+<text x="219" y="776" fill="#315d49" font-size="15" font-weight="700" text-anchor="start" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">0..N</text>
+<text x="589" y="830" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="middle">? = 선택 FK · StudySession 삭제 시 session_id는 비워짐</text>
+</g>
+</svg>

@@ -6,16 +6,18 @@
 | 프로필 | 클래스 | 용도 | 상태 |
 |---|---|---|---|
 | service | drink_return, wave, walk_turn_walk, other | 습관 자동 기록 | 자체 촬영 학습 (`rf-2026-11-24-other`) |
-| course | 교과 제공 6종 | 교과 제출 실행 (습관 기록 안 함) | **모델 파일 미확보 — 미완료** |
+| course | 교과 제공 6종 | 기존 설정과 데이터 읽기 호환 | 제출 및 기본 실행 범위에서 제외 |
 
-교과 ID(A001~A006)와 자체 데이터 ID는 섞지 않는다. 모든 분석 결과에 `model_profile`·`model_version`을 저장한다.
+원 교과 요구의 제공 모델 6종은 사용자 확인에 따라 자체 학습 4종으로 대체했다. `MODEL_PROFILE=service`가 기본값이다. 모든 분석 결과에 `model_profile`·`model_version`을 저장한다.
 
-| 서비스 라벨 | 기록 | 시간 상태 변경 |
+| 모델 라벨 | 서비스 표시명 | 생활 습관 기록 |
 |---|---|---|
-| drink_return | 음료 섭취 동작 1회 (DRINK, 용량 미측정) | 없음 |
-| wave | 손 흔들기·스트레칭 대용 1회 (MOVEMENT) | 없음 |
-| walk_turn_walk | 걷기 1회 (MOVEMENT) | 없음 |
-| other | 기록하지 않음 (NG 영상으로 학습) | 없음 |
+| `drink_return` | 음료 섭취 | 1회 (DRINK, 용량 미측정) |
+| `wave` | 어깨 스트레칭 | 활동 1회 (MOVEMENT) |
+| `walk_turn_walk` | 잠깐 자리 비움 | 동작 1회 (MOVEMENT) |
+| `other` | 기타 행동 | 제외 (NG 영상으로 학습) |
+
+잠깐 자리 비움은 이탈·복귀 동작의 분류 결과다. 시간 엔진은 사람 감지로 이탈·복귀 시각을 확인한 뒤 휴식 또는 장기 자리 비움으로 분류한다. [학습 자료 확인](TRAINING_REPORT.md#서비스-표시명과-학습-동작)
 
 ## Feature (학습·추론 공통 코드)
 YOLO11n-pose 17관절 → 어깨 중심·어깨 너비 정규화 좌표 34 + 팔꿈치·어깨 각도 4 = 38/step. 6fps × 30 step = 5초 window, stride 6. 클립은 움직임이 최대의 50% 미만인 window를 제외(`active_windows`)하고 확률을 평균한다.
@@ -33,7 +35,7 @@ flowchart TD
  B -->|No| X[보류 · episode 종료]
  B -->|Yes| C{같은 episode 진행 중?}
  C -->|Yes| X2[기록 안 함]
- C -->|No| D{60초 cooldown·클립/실시간 중복?}
+ C -->|No| D{같은 모델 라벨의 60초 cooldown·클립/실시간 중복?}
  D -->|Yes| X2
  D -->|No| E[BehaviorEvent 1건: 라벨·모델 버전·점수·시각·출처]
 ```

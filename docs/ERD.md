@@ -4,11 +4,19 @@ erDiagram
  AUTH_USER ||--o{ ANALYSIS_JOB : requests
  ANALYSIS_JOB ||--o{ PERSON_PREDICTION : contains
  AUTH_USER ||--o{ STUDY_SESSION : owns
+ AUTH_USER ||--o{ DAILY_USER_ACTIVITY : has
  STUDY_SESSION o|--o{ ANALYSIS_JOB : "optional (SET_NULL)"
  STUDY_SESSION ||--o{ STUDY_INTERVAL : contains
  AUTH_USER ||--o{ BEHAVIOR_EVENT : owns
  STUDY_SESSION o|--o{ BEHAVIOR_EVENT : "optional (SET_NULL)"
  ANALYSIS_JOB o|--o{ BEHAVIOR_EVENT : "clip source (CASCADE)"
+ DAILY_USER_ACTIVITY {
+ bigint id PK
+ bigint user_id FK
+ date day "Asia/Seoul"
+ boolean logged_in
+ datetime last_seen_at "nullable"
+ }
  STUDY_SESSION {
  uuid id PK
  bigint user_id FK
@@ -60,7 +68,7 @@ erDiagram
  int capture_seconds
  string status "PENDING/STARTED/SUCCESS/FAILURE"
  string celery_task_id
- string model_profile "service/course"
+ string model_profile "기본 service, 기존 course 값 보존"
  string model_version
  string error_code
  text error_message
@@ -81,6 +89,7 @@ erDiagram
  }
 ```
 ## 제약 및 저장 정책
+- `DailyUserActivity`: `(day, user)` 고유. 성공한 로그인 여부와 계측 대상 요청 중 마지막 접속 시각만 저장하며 사용자가 삭제되면 함께 삭제된다. 요청 경로, IP, 기기 정보는 이 모델에 저장하지 않는다. 마이그레이션은 기존 이력을 채우지 않는다.
 - `PersonPrediction`: (job, track_id) unique. `AnalysisJob` 상태는 Worker만 바꾼다.
 - `StudySession`: 사용자당 열린(ACTIVE·PAUSED) 세션 1개 (조건부 unique `one_open_session_per_user`).
 - `StudyInterval`: 반열린 구간 [started_at, ended_at), 세션당 열린 구간 1개 (`one_open_interval_per_session`). 상태 변경은 `transaction.atomic` + `select_for_update`. 합계는 구간에서 계산.

@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 868" role="img" aria-labelledby="title desc">
+<title id="title">전체 시스템 아키텍처</title>
+<desc id="desc">브라우저, IP Webcam과 Docker Compose 내 Django, Redis, Celery, FastAPI, PostgreSQL이 주고받는 데이터. 실시간 경로는 파란 점선, 클립 경로는 황갈색 실선이다.</desc>
+<defs>
+<marker id="base" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#315d49"/></marker>
+<marker id="clip" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#805515"/></marker>
+<marker id="live" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#40677a"/></marker>
+</defs>
+<g font-family="system-ui, Noto Sans CJK KR, Malgun Gothic, sans-serif">
+<rect x="0" y="0" width="1120" height="868" rx="22" fill="#f5f5f0" stroke="none"/>
+<text x="40" y="52" fill="#315d49" font-size="30" font-weight="700" text-anchor="start">전체 시스템 아키텍처</text>
+<rect x="80" y="76" width="325" height="79" rx="12" fill="#ffffff" stroke="#c9d1c8"/>
+<text x="95" y="107" fill="#315d49" font-size="21" font-weight="700" text-anchor="start">사용자 · 브라우저</text>
+<text x="95" y="134" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">공부·분석·기록 화면 / 실시간 카메라</text>
+<rect x="752" y="76" width="288" height="79" rx="12" fill="#ffffff" stroke="#c9d1c8"/>
+<text x="767" y="107" fill="#315d49" font-size="21" font-weight="700" text-anchor="start">외부 IP Webcam</text>
+<text x="767" y="134" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">허용된 카메라의 MJPEG</text>
+<rect x="36" y="183" width="1048" height="646" rx="18" fill="#f5f5f0" stroke="#315d49"/>
+<text x="190" y="216" fill="#315d49" font-size="21" font-weight="700" text-anchor="start">Docker Compose · 5개 서비스</text>
+<path d="M733 204 H771" fill="none" stroke="#40677a" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#live)" stroke-dasharray="7 5"/>
+<text x="783" y="210" fill="#40677a" font-size="16" font-weight="700" text-anchor="start">실시간</text>
+<path d="M890 204 H928" fill="none" stroke="#805515" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#clip)"/>
+<text x="940" y="210" fill="#805515" font-size="16" font-weight="700" text-anchor="start">비동기 클립</text>
+<text x="192" y="275" fill="#315d49" font-size="18" font-weight="700" text-anchor="start">웹 서비스</text>
+<text x="500" y="275" fill="#315d49" font-size="18" font-weight="700" text-anchor="start">비동기 처리</text>
+<rect x="90" y="290" width="275" height="135" rx="12" fill="#e3ede6" stroke="#c9d1c8"/>
+<text x="105" y="321" fill="#315d49" font-size="21" font-weight="700" text-anchor="start">django · Django</text>
+<text x="105" y="348" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">8000 · DRF 인증, API, 상태·결과</text>
+<text x="105" y="371" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">시간 상태 / 행동 기록</text>
+<text x="105" y="394" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">MJPEG 중계 / 업로드 저장</text>
+<rect x="493" y="290" width="143" height="80" rx="12" fill="#f3ebd9" stroke="#c9d1c8"/>
+<text x="508" y="321" fill="#315d49" font-size="21" font-weight="700" text-anchor="start">redis</text>
+<text x="508" y="348" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">6379 · 브로커</text>
+<rect x="805" y="290" width="238" height="135" rx="12" fill="#f3ebd9" stroke="#c9d1c8"/>
+<text x="820" y="321" fill="#315d49" font-size="21" font-weight="700" text-anchor="start">celery · Worker</text>
+<text x="820" y="348" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">Job ID로 작업 선점</text>
+<text x="820" y="371" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">업로드 읽기 / 카메라 수집</text>
+<text x="820" y="394" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">예측·행동·작업 상태 저장</text>
+<path d="M152 155 V290" fill="none" stroke="#315d49" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#base)" marker-start="url(#base)"/>
+<text x="165" y="173" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">HTTP 8000 · MP4·JPEG 요청 / 화면·상태·결과</text>
+<path d="M849 155 V247 H350 V290" fill="none" stroke="#805515" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#clip)"/>
+<text x="573" y="241" fill="#805515" font-size="17" font-weight="400" text-anchor="middle" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">카메라 → Django 중계 허브: MJPEG</text>
+<path d="M365 322 H493" fill="none" stroke="#805515" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#clip)"/>
+<text x="430" y="308" fill="#1e2a24" font-size="16" font-weight="400" text-anchor="middle" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">Job ID 등록</text>
+<path d="M636 322 H805" fill="none" stroke="#805515" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#clip)"/>
+<text x="719" y="308" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="middle" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">태스크 + Job ID</text>
+<path d="M365 396 H805" fill="none" stroke="#805515" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#clip)" marker-start="url(#clip)"/>
+<text x="585" y="384" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="middle" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">Worker 토큰 요청 / Django MJPEG 응답</text>
+<text x="447" y="544" fill="#315d49" font-size="18" font-weight="700" text-anchor="start">AI 추론</text>
+<rect x="433" y="562" width="342" height="110" rx="12" fill="#ebe7f3" stroke="#c9d1c8"/>
+<text x="448" y="593" fill="#315d49" font-size="21" font-weight="700" text-anchor="start">fastapi · FastAPI</text>
+<text x="448" y="620" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">8001 · YOLO Pose + Random Forest</text>
+<text x="448" y="643" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">실시간 관측 / 사람별 4종 예측</text>
+<path d="M325 425 V482 H535 V562" fill="none" stroke="#40677a" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#live)" marker-start="url(#live)" stroke-dasharray="7 5"/>
+<text x="440" y="471" fill="#40677a" font-size="17" font-weight="400" text-anchor="middle" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">JPEG·ROI·seq·stream_key</text>
+<text x="440" y="511" fill="#40677a" font-size="17" font-weight="400" text-anchor="middle" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">관측·행동 후보 JSON</text>
+<path d="M881 425 V594 H775" fill="none" stroke="#805515" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#clip)" marker-start="url(#clip)"/>
+<text x="873" y="484" fill="#805515" font-size="17" font-weight="400" text-anchor="middle" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">multipart MP4</text>
+<text x="873" y="513" fill="#805515" font-size="17" font-weight="400" text-anchor="middle" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">사람별 예측 JSON</text>
+<text x="155" y="688" fill="#315d49" font-size="18" font-weight="700" text-anchor="start">데이터 저장</text>
+<rect x="90" y="702" width="310" height="80" rx="12" fill="#e4edf1" stroke="#c9d1c8"/>
+<text x="105" y="733" fill="#315d49" font-size="21" font-weight="700" text-anchor="start">postgres · PostgreSQL</text>
+<text x="105" y="760" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">5432 · 사용자·시간·작업·예측·행동</text>
+<rect x="703" y="702" width="340" height="80" rx="12" fill="#e4edf1" stroke="#c9d1c8"/>
+<text x="718" y="733" fill="#315d49" font-size="21" font-weight="700" text-anchor="start">공유 media 볼륨</text>
+<text x="718" y="760" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">Django 업로드 / Worker 읽기·수집 저장</text>
+<path d="M132 425 V702" fill="none" stroke="#315d49" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#base)" marker-start="url(#base)"/>
+<text x="148" y="582" fill="#1e2a24" font-size="18" font-weight="400" text-anchor="start" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">ORM 조회·저장</text>
+<path d="M1043 406 H1064 V799 H291 V782" fill="none" stroke="#805515" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#clip)"/>
+<text x="603" y="818" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="middle" paint-order="stroke" stroke="#f5f5f0" stroke-width="8" stroke-linejoin="round">Worker → PostgreSQL: 작업 상태·사람별 예측·행동 기록</text>
+</g>
+</svg>

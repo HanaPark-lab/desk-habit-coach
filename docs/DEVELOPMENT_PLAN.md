@@ -1,4 +1,6 @@
 # DESK HABIT COACH 통합 개발 계획서 v2.0
+
+> 초기 기획 문서다. 최종 적용 범위는 [최종 구현 명세](FINAL_IMPLEMENTATION.md)를 따른다. 사용자 확인에 따라 교과 제공 모델 6종 요구를 자체 학습 4종으로 대체했다.
 2026-11-24 | 구현 전 설계 | 교과 10 기반
 
 ## 목적 및 범위
@@ -69,7 +71,7 @@ flowchart TB
    V[영상 및 프레임 입력]
    Y[YOLO Pose / Tracking]
    F[기존 Feature / Sequence]
-   RF[Random Forest 6종]
+   RF[Random Forest 자체 학습 4종]
    P[착석 영역·사람 존재 판정]
    V --> Y --> F --> RF
    Y --> P
@@ -336,10 +338,12 @@ Frame POST multipart: frame(JPEG), seq(단조 증가 정수). 서버 시간 사�
 |---|---|---|
 | A001 | bend_return | 허리 움직임 |
 | A002 | leg_raise_lower | 다리 움직임 |
-| A003 | walk_turn_walk | 걷기 활동 |
-| A004 | drink_return | 음료 섭취 동작 |
+| A003 | walk_turn_walk | 잠깐 자리 비움 |
+| A004 | drink_return | 음료 섭취 |
 | A005 | sit_stand | 기립 활동 |
-| A006 | wave | 팔 움직임 |
+| A006 | wave | 어깨 스트레칭 |
+
+이 표의 ID는 초기 교과 설계 기준이다. 실제 자체 학습 폴더 ID와 동작 표본은 [학습 보고서](TRAINING_REPORT.md#서비스-표시명과-학습-동작)를 참조한다.
 
 ## 두 분석 분기 (Pose 공유)
 1. 동작: 사람별 관절 → 기존 정규화·38 features → 30 step → RF → 윈도우 집계 → 품질/신뢰도/지속성 필터 → 이벤트 후보.
@@ -354,7 +358,7 @@ flowchart TD
  C -->|Yes| X
  C -->|No| D[DRINK 또는 MOVEMENT 기록]
 ```
-RF는 폐쇄형 6종 분류이므로 미학습 행동도 높은 점수로 오분류 가능. UNKNOWN은 서비스 보류 상태이지 RF 클래스가 아니다. 초기 threshold는 검증 데이터로 결정하고, 동작 종료/재진입 및 cooldown을 조합해 중복 제거한다. 단순 연속 window 개수를 행동 횟수로 세지 않는다. 수분량·실제 집중·올바른 스트레칭을 추정하지 않는다.
+RF는 폐쇄형 4종 분류이므로 미학습 행동도 높은 점수로 오분류 가능. UNKNOWN은 서비스 보류 상태이지 RF 클래스가 아니다. 초기 threshold는 검증 데이터로 결정하고, 동작 종료/재진입 및 cooldown을 조합해 중복 제거한다. 단순 연속 window 개수를 행동 횟수로 세지 않는다. 수분량·실제 집중·올바른 스트레칭을 추정하지 않는다.
 
 실시간 프레임은 학습 당시 sampling cadence에 맞춰야 한다. 처리량 부족 시 행동 인식을 비활성화하고 수동 클립 분석으로 대체한다. 상태 감지 초기값: 복귀 3초, 부재 5초, heartbeat 5초 초과 UNKNOWN(검증 후 조정). 서버 시각 기준 상태 구간 계산, 마지막 유효 관측 이후 미확인 시간은 UNKNOWN으로 정산.
 
@@ -366,7 +370,7 @@ RF는 폐쇄형 6종 분류이므로 미학습 행동도 높은 점수로 오분
 
 | 데이터 | 초기 목표 | 목적 |
 |---|---|---|
-| 6종 동작 | 각 5~10 클립, 5~8초 이상 필요 시 연장 | 기존 RF 검증 |
+| 자체 학습 4종 | 각 5~10 클립, 5~8초 이상 필요 시 연장 | 기존 RF 검증 |
 | 타이핑·마우스·휴대폰·얼굴 만지기·컵만 들기 | 각 5~10 클립 | 미학습 행동 오탐 평가 |
 | 착석·복귀·자리 비움·가림·다중 인물 | 각 5회 이상 | 상태 전이 평가 |
 | 연속 공부 세션 | 10~20분 3회 이상 | 중복 기록·시간 오차 평가 |
@@ -379,7 +383,7 @@ RF는 폐쇄형 6종 분류이므로 미학습 행동도 높은 점수로 오분
 # 모델 및 시스템 평가 v2.0
 | 항목 | 지표 |
 |---|---|
-| 6종 동작 | confusion matrix, class precision/recall/F1, macro F1 |
+| 자체 학습 4종 | confusion matrix, class precision/recall/F1, macro F1 |
 | 미학습 행동 | 잘못 기록된 이벤트 / 미학습 클립, 시간당 오탐 |
 | 행동 이벤트 | 정답 이벤트와 시간 허용 오차 내 일대일 매칭, precision/recall, 횟수 MAE |
 | 시간 기록 | 상태별 duration MAE, 착석 추정시간 오차, UNKNOWN 비율 |
@@ -394,7 +398,7 @@ threshold와 cooldown은 검증 세트에서 결정 후 고정하고 독립 평�
 # 테스트 v2.0
 | ID | 통과 기준 |
 |---|---|
-| T01 | 기존 모델 6 classes, 1140 features 및 JSON 일치 |
+| T01 | 자체 학습 4종, 30 step × 38 feature, 6fps, JSON feature 순서 및 공통 전처리 일치 |
 | T02 | MP4 업로드 후 사람별 결과 조회 |
 | T03 | IP Webcam 짧은 클립 수집 및 분석 |
 | T04 | 다중 인물 Track ID별 결과 분리 |

@@ -21,6 +21,8 @@
 
 **작업 생성** (multipart): `input_type=UPLOAD` + `video_file` 또는 `input_type=IPCAM` + `camera_key`(서버 허용 목록) + `capture_seconds`(5~15). 확장자가 영상이 아니면 작업을 FAILURE(`INVALID_FILE`)로 저장하고 202로 반환한다. 파일 없음·허용되지 않은 카메라·범위 밖 시간은 400.
 
+최종 실행 모델은 자체 학습 4종인 `service`다. 상태 응답의 `model_profile`·`model_version`은 저장된 분석 모델을 나타낸다.
+
 **작업 응답 주요 필드**: `id, status, model_profile, model_version, error_code, error_message, processing_ms, predictions[{track_id, action_label, confidence, window_count, probabilities, event_type, event_score}], record{recorded, event_type, reason}`.
 
 **세션 응답**: `id, status, mode, roi, phone_detection, current_state, current_started_at, seconds{STUDY,BREAK,AWAY,AWAY_PENDING,UNKNOWN}, study_seconds_by_source{AUTO,MANUAL}, distractions, intervals[]` + 평평한 필드:

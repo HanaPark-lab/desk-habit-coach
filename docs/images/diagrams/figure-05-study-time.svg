@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 802" role="img" aria-labelledby="title desc">
+<title id="title">공부 시간 및 휴식 판단 로직</title>
+<desc id="desc">AI 모드와 수동 타이머의 상태 전환을 나란히 표시하고, 복귀 확인 뒤 구간이 휴식으로 확정되는 예를 보여 준다. 행동 분류는 별도 기록 경로다.</desc>
+<defs>
+<marker id="base" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#315d49"/></marker>
+<marker id="clip" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#805515"/></marker>
+<marker id="live" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#40677a"/></marker>
+</defs>
+<g font-family="system-ui, Noto Sans CJK KR, Malgun Gothic, sans-serif">
+<rect x="0" y="0" width="1120" height="802" rx="22" fill="#f5f5f0" stroke="none"/>
+<text x="40" y="52" fill="#315d49" font-size="30" font-weight="700" text-anchor="start">공부 시간 및 휴식 판단 로직</text>
+<rect x="39" y="77" width="581" height="395" rx="12" fill="#ffffff" stroke="#c9d1c8"/>
+<rect x="640" y="77" width="440" height="395" rx="12" fill="#ffffff" stroke="#c9d1c8"/>
+<text x="58" y="112" fill="#315d49" font-size="23" font-weight="700" text-anchor="start">카메라 AI 모드</text>
+<text x="662" y="112" fill="#315d49" font-size="23" font-weight="700" text-anchor="start">수동 타이머</text>
+<rect x="51" y="133" width="557" height="51" rx="8" fill="#eceee8" stroke="none"/>
+<text x="61" y="153" fill="#1e2a24" font-size="18" font-weight="700" text-anchor="start">시작·재개 → UNKNOWN</text>
+<text x="61" y="176" fill="#1e2a24" font-size="16" font-weight="400" text-anchor="start">유효 관측을 기다리는 구간</text>
+<text x="61" y="207" fill="#1e2a24" font-size="18" font-weight="700" text-anchor="start">UNKNOWN / AWAY → STUDY</text>
+<text x="61" y="230" fill="#1e2a24" font-size="16" font-weight="400" text-anchor="start">한 사람 3초 안정 감지 · 첫 감지 시각부터</text>
+<rect x="51" y="241" width="557" height="51" rx="8" fill="#eceee8" stroke="none"/>
+<text x="61" y="261" fill="#1e2a24" font-size="18" font-weight="700" text-anchor="start">STUDY / UNKNOWN → AWAY_PENDING</text>
+<text x="61" y="284" fill="#1e2a24" font-size="16" font-weight="400" text-anchor="start">유효한 부재 5초 지속 · 첫 미감지 시각부터</text>
+<text x="61" y="315" fill="#1e2a24" font-size="18" font-weight="700" text-anchor="start">AWAY_PENDING → STUDY</text>
+<text x="61" y="338" fill="#1e2a24" font-size="16" font-weight="400" text-anchor="start">복귀 3초 확인 · 첫 복귀까지 ≤15분이면 이탈 구간 BREAK</text>
+<rect x="51" y="349" width="557" height="51" rx="8" fill="#eceee8" stroke="none"/>
+<text x="61" y="369" fill="#1e2a24" font-size="18" font-weight="700" text-anchor="start">AWAY_PENDING → AWAY</text>
+<text x="61" y="392" fill="#1e2a24" font-size="16" font-weight="400" text-anchor="start">15분 초과 또는 종료·수동 휴식 전까지 복귀 미확정</text>
+<text x="61" y="423" fill="#1e2a24" font-size="18" font-weight="700" text-anchor="start">유효 관측 공백 → UNKNOWN</text>
+<text x="61" y="446" fill="#1e2a24" font-size="16" font-weight="400" text-anchor="start">기본 5초 초과 · 이탈 대기 구간은 AWAY로 먼저 확정</text>
+<rect x="653" y="133" width="413" height="56" rx="8" fill="#e3ede6" stroke="none"/>
+<text x="664" y="154" fill="#1e2a24" font-size="18" font-weight="700" text-anchor="start">시작·재개 → STUDY</text>
+<text x="664" y="178" fill="#1e2a24" font-size="16" font-weight="400" text-anchor="start">버튼 기준으로 수동 공부 시간 기록</text>
+<text x="664" y="216" fill="#1e2a24" font-size="18" font-weight="700" text-anchor="start">일시정지 → BREAK</text>
+<text x="664" y="240" fill="#1e2a24" font-size="16" font-weight="400" text-anchor="start">AI 모드에서도 수동 휴식이 우선</text>
+<rect x="653" y="257" width="413" height="56" rx="8" fill="#e3ede6" stroke="none"/>
+<text x="664" y="278" fill="#1e2a24" font-size="18" font-weight="700" text-anchor="start">연결 공백 → UNKNOWN</text>
+<text x="664" y="302" fill="#1e2a24" font-size="16" font-weight="400" text-anchor="start">마지막 heartbeat 후 90초 초과 시 소급 정산</text>
+<text x="664" y="340" fill="#1e2a24" font-size="18" font-weight="700" text-anchor="start">UNKNOWN → STUDY</text>
+<text x="664" y="364" fill="#1e2a24" font-size="16" font-weight="400" text-anchor="start">수동 모드에서 heartbeat 복구</text>
+<rect x="653" y="381" width="413" height="56" rx="8" fill="#e3ede6" stroke="none"/>
+<text x="664" y="402" fill="#1e2a24" font-size="18" font-weight="700" text-anchor="start">종료 → 열린 구간 닫기</text>
+<text x="664" y="426" fill="#1e2a24" font-size="16" font-weight="400" text-anchor="start">AI 모드에서도 미확정 이탈을 AWAY로 확정</text>
+<text x="40" y="510" fill="#315d49" font-size="22" font-weight="700" text-anchor="start">AI 시간 기록 예시</text>
+<text x="40" y="541" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">00:02 첫 감지 → 00:05 공부 확인    ·    00:40 첫 미감지 → 00:45 이탈 대기</text>
+<text x="40" y="567" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">01:40 첫 복귀 → 01:43 복귀 확인. 첫 미감지부터 첫 복귀까지 60초가 휴식으로 확정됩니다.</text>
+<rect x="40" y="592" width="165" height="54" rx="0" fill="#eceee8" stroke="#c9d1c8"/>
+<text x="122.5" y="625" fill="#1e2a24" font-size="19" font-weight="700" text-anchor="middle">UNKNOWN</text>
+<rect x="205" y="592" width="280" height="54" rx="0" fill="#e3ede6" stroke="#c9d1c8"/>
+<text x="345.0" y="625" fill="#1e2a24" font-size="19" font-weight="700" text-anchor="middle">STUDY</text>
+<rect x="485" y="592" width="337" height="54" rx="0" fill="#f3ebd9" stroke="#c9d1c8"/>
+<text x="653.5" y="625" fill="#1e2a24" font-size="19" font-weight="700" text-anchor="middle">BREAK</text>
+<rect x="822" y="592" width="258" height="54" rx="0" fill="#e3ede6" stroke="#c9d1c8"/>
+<text x="951.0" y="625" fill="#1e2a24" font-size="19" font-weight="700" text-anchor="middle">STUDY</text>
+<text x="40" y="673" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">00:00</text>
+<text x="205" y="673" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">00:02</text>
+<text x="485" y="673" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">00:40</text>
+<text x="822" y="673" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">01:40</text>
+<text x="40" y="701" fill="#1e2a24" font-size="17" font-weight="400" text-anchor="start">복귀 확인 전에는 00:40 이후를 AWAY_PENDING으로 표시합니다. 구간 너비는 예시입니다.</text>
+<rect x="39" y="724" width="1041" height="51" rx="12" fill="#e4edf1" stroke="#c9d1c8"/>
+<text x="59" y="756" fill="#40677a" font-size="19" font-weight="700" text-anchor="start">행동 기록 별도 경로</text>
+<text x="263" y="756" fill="#1e2a24" font-size="18" font-weight="400" text-anchor="start">행동 후보 → 기록 조건 확인 → BehaviorEvent 저장 · 시간 상태 전환 없음</text>
+</g>
+</svg>
