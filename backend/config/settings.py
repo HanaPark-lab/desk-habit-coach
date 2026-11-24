@@ -133,4 +133,5 @@ DAILY_GOALS = {  # 오늘 대시보드 목표
 # 현재 DRINK 0.56·MOVEMENT 0.64는 학습 데이터 교차검증으로 정한 초기 후보값. 별도 검증 데이터로 확정 필요.
 # AI 착석 추정: 마지막 유효 관측 후 이 시간이 지나면 UNKNOWN (수동 heartbeat 90초와 별개). 실측 지연에 맞춰 조정
 AI_OBSERVATION_TIMEOUT_SECONDS = float(os.environ.get("AI_OBSERVATION_TIMEOUT_SECONDS", "5"))
+REALTIME_DEBUG = os.environ.get("REALTIME_DEBUG", "0") == "1"
 EVENT_THRESHOLDS = {e: float(os.environ.get(f"EVENT_THRESHOLD_{e}", "0.5")) for e in ("DRINK", "MOVEMENT")}

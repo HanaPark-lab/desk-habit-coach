@@ -114,19 +114,49 @@ def test_presence_rules():
     assert presence([], roi) == ({"track_count": 0, "quality_passed": True, "presence_candidate": False}, None)  # 분명히 없음
     assert presence([me, {**me, "box": [0.2, 0.1, 0.6, 0.9]}], roi)[0]["presence_candidate"] is False          # 다중 인물
     assert presence([{**me, "keypoints": blurry}], roi)[0]["quality_passed"] is False                          # 가림·흐림
+    shoulders_visible = [point[:] for point in blurry]
+    for i in (5, 6):
+        shoulders_visible[i][2] = 0.4
+    observation, target = presence([{**me, "keypoints": shoulders_visible}], roi)
+    assert not observation["presence_candidate"] and target == 0
 
 
 def test_stream_buffer_6fps_window_and_reset():
     from services import stream_buffer as sb
     buf, f = sb.StreamBuffers(), np.ones(FEATURES_PER_STEP, np.float32)
     step = sb.STEP_MS
-    outs = [buf.add("s", i * step, f)[0] for i in range(42)]
+    outs = [buf.add("s", i * step, f).window for i in range(42)]
     hits = [i for i, w in enumerate(outs) if w is not None]
     assert hits == [29, 35, 41] and outs[29].shape == (1, 1140)        # 30 Step에서 첫 Window, 이후 6 Step마다
-    assert buf.add("s", 41 * step + 20, f) == (None, 30)               # 6fps보다 빠름 → 건너뜀
-    assert buf.add("s", 41 * step + step * 3, f)[1] == 1               # 2 Step 넘게 빔 → 복제 없이 처음부터
-    assert buf.add("s", 45 * step, None) == (None, 0)                  # 대상 불분명 → 비움
+    assert buf.add("s", 41 * step + 20, f).status == "slot_already_sampled"
+    reset = buf.add("s", 44 * step, f)
+    assert (reset.steps, reset.valid_steps, reset.status) == (1, 1, "gap_reset")
+    missing = buf.add("s", 45 * step, None)
+    assert (missing.steps, missing.valid_steps) == (2, 1)
     assert buf.drop("s") and not buf.drop("s")
+
+
+def test_realtime_window_matches_training_with_missing_pose_and_one_missed_slot():
+    from services.stream_buffer import STEP_MS, StreamBuffers
+
+    frames = [np.full(FEATURES_PER_STEP, i, np.float32) if i not in (0, 7, 8, 9, 10) else None for i in range(30)]
+    buffer = StreamBuffers()
+    for index, frame in enumerate(frames):
+        if index != 6:  # browser missed this slot entirely
+            result = buffer.add("replay", round(index * STEP_MS), frame)
+    frames[6] = None
+    assert (result.steps, result.valid_steps, result.status) == (30, 24, "window")
+    np.testing.assert_array_equal(result.window, windows(frames))
+
+
+def test_realtime_window_rejects_fewer_than_half_valid_poses():
+    from services.stream_buffer import STEP_MS, StreamBuffers
+
+    buffer = StreamBuffers()
+    pose = np.ones(FEATURES_PER_STEP, np.float32)
+    for index in range(30):
+        result = buffer.add("replay", round(index * STEP_MS), pose if index < 14 else None)
+    assert (result.window, result.steps, result.valid_steps, result.status) == (None, 30, 14, "insufficient_pose")
 
 
 def test_stream_buffer_limits(monkeypatch):
@@ -149,7 +179,9 @@ def test_realtime_window_from_single_person_frames(client):
     bodies = [send(i) for i in range(30)]
     assert bodies[0]["presence_candidate"] and bodies[28]["buffer_steps"] == 29 and bodies[28]["action_candidates"] == []
     cands = bodies[29]["action_candidates"]                              # 30 Step(6fps 5초)에서 첫 결과
-    assert [c["label"] for c in cands] and abs(sum(c["probability"] for c in cands) - 1) < 1e-3
+    assert {c["label"] for c in cands} == {"drink_return", "wave", "walk_turn_walk", "other"}
+    assert abs(sum(c["probability"] for c in cands) - 1) < 1e-3
+    assert bodies[29]["valid_pose_frames"] == 30
     client.delete("/streams/rt-test")
 
 

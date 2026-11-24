@@ -48,7 +48,7 @@ def _parse_roi(roi):
 
 
 def presence(persons, roi):
-    """ROI(착석 영역) 안 사람 → (착석 후보 판단, 대상 사람의 persons 위치 또는 None). 사람 중심이 ROI 안이면 대상.
+    """ROI의 시간 관측 결과와 단일 행동 후보의 인덱스를 각각 반환한다.
 
     quality_passed: ROI 안 모든 사람의 상체 관절(코·양 어깨)이 분명함 (0명이면 '분명히 없음'으로 통과)
     presence_candidate: ROI 안에 품질 통과한 사람이 정확히 1명
@@ -60,7 +60,7 @@ def presence(persons, roi):
     quality = len(clear) == len(inside)
     candidate = quality and len(inside) == 1
     info = {"track_count": len(inside), "quality_passed": quality, "presence_candidate": candidate}
-    return info, (inside[0] if candidate else None)
+    return info, (inside[0] if len(inside) == 1 else None)
 
 
 UPPER_BODY = (0, 5, 6)      # 코·왼어깨·오른어깨 (책상 앞 상반신 기준)
@@ -109,17 +109,21 @@ def predict_frame(request: Request, frame: UploadFile = File(...), roi: str = Fo
                                      for b, c in zip(det.boxes.xyxy.cpu().numpy(), det.boxes.conf.cpu().numpy())]
     info, target = presence(persons, region)
 
-    candidates, buffer_steps = [], 0
-    if stream_key:
-        # 착석 대상이 정확히 1명일 때만 버퍼에 쌓음 (그 외에는 버퍼를 비워 다른 사람과 섞이지 않게)
+    candidates, buffer_steps, valid_steps, buffer_status = [], 0, 0, "disabled"
+    if stream_key and info["track_count"] > 1:
+        state.streams.drop(stream_key)  # 여러 사람의 관절을 한 행동 Window에 섞지 않는다.
+        buffer_status = "multiple_people_reset"
+    elif stream_key:
+        # 시간 관측 기준과 행동 Feature 기준은 별개다. 행동은 학습과 같은 어깨 신뢰도를 사용한다.
         feature = step_features(*raw[target]) if target is not None else None
-        window, buffer_steps = state.streams.add(stream_key, seq, feature)
+        window, buffer_steps, valid_steps, buffer_status = state.streams.add(stream_key, seq, feature)
         if window is not None:
             proba = state.bundle.model.predict_proba(window)[0]
             candidates = sorted(({"label": c, "probability": round(float(p), 4)} for c, p in zip(state.bundle.classes, proba)),
                                 key=lambda x: -x["probability"])
     return {"persons": persons, "phones": phones, **info,
             "action_candidates": candidates, "buffer_steps": buffer_steps,
+            "valid_pose_frames": valid_steps, "buffer_status": buffer_status,
             "model_profile": state.bundle.profile, "model_version": state.bundle.version,
             "processing_ms": int((time.perf_counter() - start) * 1000)}
 

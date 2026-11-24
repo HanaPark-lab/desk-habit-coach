@@ -1,28 +1,35 @@
-"""실시간 행동 분석용 세션별 30-step 버퍼 (메모리, 단일 FastAPI 프로세스 기준).
-
-학습과 같은 입력 조건을 지킨다: 6fps(Step 간격 약 167ms), 30 Step = 5초, stride 6 Step.
-- 너무 빨리 온 프레임(간격 < 0.5 Step)은 버린다 (6fps로 맞춤)
-- 간격이 MAX_GAP_STEPS를 넘거나 대상이 분명하지 않으면(None) 버퍼를 비운다. 빠진 Step을 복제해 채우지 않는다.
-- STREAM_TTL 동안 프레임이 없거나 MAX_STREAMS를 넘으면 오래된 버퍼부터 지운다. 서버 재시작 시 비어 있다.
-"""
+"""세션별 6fps 슬롯과 학습용 Window 전처리를 사용하는 실시간 행동 버퍼."""
 import threading
 import time
+from typing import NamedTuple
 
 import numpy as np
 
-from src.sequence_utils import SEQ_STEPS, TARGET_FPS, WINDOW_STRIDE
+from src.sequence_utils import SEQ_STEPS, TARGET_FPS, WINDOW_STRIDE, windows
 
 STEP_MS = 1000 / TARGET_FPS
 MAX_GAP_STEPS = 2
-STREAM_TTL = 60.0   # 초
+STREAM_TTL = 60.0
 MAX_STREAMS = 20
 
 
-class _Stream:
-    __slots__ = ("steps", "last_ts", "since_pred", "touched")
+class BufferResult(NamedTuple):
+    window: np.ndarray | None
+    steps: int
+    valid_steps: int
+    status: str
 
+
+class _Stream:
     def __init__(self):
-        self.steps, self.last_ts, self.since_pred, self.touched = [], None, 0, time.monotonic()
+        self.steps = []
+        self.anchor = None
+        self.last_slot = -1
+        self.next_window = SEQ_STEPS - 1
+        self.touched = time.monotonic()
+
+    def result(self, status, window=None):
+        return BufferResult(window, len(self.steps), sum(step is not None for step in self.steps), status)
 
 
 class StreamBuffers:
@@ -38,32 +45,43 @@ class StreamBuffers:
             return self._streams.pop(key, None) is not None
 
     def _purge(self, now):
-        for k in [k for k, s in self._streams.items() if now - s.touched > STREAM_TTL]:
-            del self._streams[k]
+        for key in [k for k, stream in self._streams.items() if now - stream.touched > STREAM_TTL]:
+            del self._streams[key]
         while len(self._streams) >= MAX_STREAMS:
             del self._streams[min(self._streams, key=lambda k: self._streams[k].touched)]
 
     def add(self, key, ts_ms, feature):
-        """Step 하나 추가. 반환: (예측할 Window (1, 1140) 또는 None, 현재 버퍼 Step 수)."""
+        """한 슬롯에 한 프레임. 결측 Pose는 학습과 같은 유효률·보간 규칙으로 처리한다."""
         now = time.monotonic()
         with self._lock:
-            s = self._streams.get(key)
-            if s is None:
+            stream = self._streams.get(key)
+            if stream is None:
                 self._purge(now)
-                s = self._streams[key] = _Stream()
-            s.touched = now
-            if s.last_ts is not None and 0 <= ts_ms - s.last_ts < STEP_MS * 0.5:
-                return None, len(s.steps)                     # 6fps보다 빠름 → 이 프레임은 건너뜀
-            gap = s.last_ts is not None and not (0 <= ts_ms - s.last_ts <= STEP_MS * MAX_GAP_STEPS)
-            s.last_ts = ts_ms
-            if feature is None or gap:
-                s.steps, s.since_pred = [], 0                  # 대상 불분명·프레임 누락 → 처음부터
-                if feature is None:
-                    return None, 0
-            s.steps.append(feature)
-            del s.steps[:-SEQ_STEPS]
-            s.since_pred += 1
-            if len(s.steps) == SEQ_STEPS and s.since_pred >= WINDOW_STRIDE:  # 처음 찼을 때 + 이후 6 Step마다
-                s.since_pred = 0
-                return np.concatenate(s.steps)[None, :], SEQ_STEPS
-            return None, len(s.steps)
+                stream = self._streams[key] = _Stream()
+
+            status = "collecting"
+            if stream.anchor is not None:
+                slot = round((ts_ms - stream.anchor) / STEP_MS)
+                if slot <= stream.last_slot:
+                    return stream.result("slot_already_sampled")
+                if slot - stream.last_slot > MAX_GAP_STEPS or now - stream.touched > STREAM_TTL:
+                    stream = self._streams[key] = _Stream()
+                    status = "gap_reset"
+
+            stream.touched = now
+            if stream.anchor is None:
+                stream.anchor = ts_ms
+                slot = 0
+
+            stream.steps.extend([None] * (slot - stream.last_slot - 1))
+            stream.steps.append(feature)
+            del stream.steps[:-SEQ_STEPS]
+            stream.last_slot = slot
+            if slot < stream.next_window:
+                return stream.result(status)
+
+            stream.next_window += WINDOW_STRIDE
+            result = windows(stream.steps)
+            if not len(result):
+                return stream.result("insufficient_pose")
+            return stream.result("window", result)
