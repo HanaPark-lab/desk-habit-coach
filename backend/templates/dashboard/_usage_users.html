@@ -1,0 +1,19 @@
+<div class="table-scroll">
+  <table class="usage-users">
+    <thead>
+      <tr><th scope="col">사용자</th><th scope="col">가입일</th><th scope="col">최근 접속</th><th scope="col">오늘 AI 추정 공부</th><th scope="col">오늘 수동 기록</th><th scope="col">오늘 분석 작업</th></tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <th scope="row">{{ row.username }}</th>
+        <td>{{ row.joined_at|date:"Y.m.d" }}</td>
+        <td>{% if row.last_seen_at %}<time datetime="{{ row.last_seen_at|date:'c' }}">{{ row.last_seen_at|date:"Y.m.d H:i:s" }}</time>{% else %}미수집{% endif %}</td>
+        <td>{{ row.auto_time }}</td><td>{{ row.manual_time }}</td><td>{{ row.job_count }}건</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="muted">{{ empty_message }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

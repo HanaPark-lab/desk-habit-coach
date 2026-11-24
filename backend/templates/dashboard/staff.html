@@ -1,12 +1,56 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static tz action_labels %}
 {% block title %}관리자 대시보드 · desk habit.{% endblock %}
 {% block content %}
+{% timezone "Asia/Seoul" %}
 <h1 class="admin-title">desk habit. Admin <small class="muted">관리자</small></h1>
 <p class="muted">PostgreSQL에서 실시간으로 집계한 값입니다. 새로고침하면 갱신됩니다.</p>
 
-<div class="stats two">
-  <div class="stat"><div class="stat-label">전체 사용자</div><div class="stat-value">{{ stats.users }}<small>명</small></div></div>
+<section aria-labelledby="usage-title">
+  <h2 id="usage-title">사용자 이용 현황</h2>
+  <div class="stats usage-stats">
+    <div class="stat"><div class="stat-label">전체 누적 가입자</div><div class="stat-value">{{ usage.total_users }}<small>명</small></div></div>
+    <div class="stat"><div class="stat-label">오늘 신규 가입자</div><div class="stat-value">{{ usage.today.joined }}<small>명</small></div></div>
+    <div class="stat"><div class="stat-label">오늘 로그인 사용자</div><div class="stat-value">{{ usage.today.logins }}<small>명</small></div></div>
+    <div class="stat"><div class="stat-label">오늘 접속 사용자</div><div class="stat-value">{{ usage.today.visits }}<small>명</small></div></div>
+    <div class="stat"><div class="stat-label">오늘 실제 서비스 이용자</div><div class="stat-value">{{ usage.today.used }}<small>명</small></div></div>
+  </div>
+  <p class="note">한국 시간 기준입니다. 접속은 로그인 상태로 서비스 화면을 열거나 기능을 직접 사용한 경우, 실제 이용은 공부 시간 또는 분석 요청이 기록된 경우입니다. 각 항목에서 같은 사용자는 하루에 한 번 집계합니다.</p>
+
+  <section class="card usage-trend" aria-labelledby="usage-trend-title">
+    <h3 id="usage-trend-title">최근 7일 사용자 이용 추이</h3>
+    <div class="usage-chart" hidden><canvas id="usage-chart" role="img" aria-labelledby="usage-trend-title"></canvas></div>
+    <div class="table-scroll" id="usage-chart-values">
+      <table>
+        <thead><tr><th scope="col">날짜</th><th scope="col">가입</th><th scope="col">로그인</th><th scope="col">접속</th><th scope="col">실제 이용</th></tr></thead>
+        <tbody>
+          {% for day in usage.trend %}
+          <tr><td>{{ day.label }}</td><td>{{ day.joined }}</td><td>{{ day.logins|default_if_none:"미수집" }}</td><td>{{ day.visits|default_if_none:"미수집" }}</td><td>{{ day.used }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="note">수집 시작 전의 일별 로그인·접속 수는 비워 둡니다.</p>
+  </section>
+
+  <section class="card" aria-labelledby="usage-signups-title">
+    <h3 class="usage-list-title" id="usage-signups-title">최근 가입 사용자</h3>
+    {% include "dashboard/_usage_users.html" with rows=usage.recent_users empty_message="가입한 사용자가 없습니다." only %}
+  </section>
+  <section class="card" aria-labelledby="usage-visitors-title">
+    <h3 class="usage-list-title" id="usage-visitors-title">오늘 접속 사용자</h3>
+    {% include "dashboard/_usage_users.html" with rows=usage.visitor_rows empty_message="오늘 수집된 접속 기록이 없습니다." only %}
+    {% if usage.visits_page.has_other_pages %}
+    <nav class="usage-pages" aria-label="오늘 접속 사용자 페이지">
+      {% if usage.visits_page.has_previous %}<a class="chip" href="?visits_page={{ usage.visits_page.previous_page_number }}#usage-visitors-title">이전</a>{% endif %}
+      <span>{{ usage.visits_page.number }} / {{ usage.visits_page.paginator.num_pages }}</span>
+      {% if usage.visits_page.has_next %}<a class="chip" href="?visits_page={{ usage.visits_page.next_page_number }}#usage-visitors-title">다음</a>{% endif %}
+    </nav>
+    {% endif %}
+  </section>
+</section>
+
+<div class="stats">
   <div class="stat"><div class="stat-label">전체 분석 작업</div><div class="stat-value">{{ stats.total }}<small>건</small></div></div>
   <div class="stat">
     <div class="stat-label">분석 처리 성공률</div>
@@ -33,7 +77,7 @@
       {% endfor %}
     </ul>
   </div>
-  <p class="note">기록 안 함 = 분석은 끝났지만 기준 미달·기타 동작·사람 없음. 실패 = 파일·카메라·AI 서버 오류.</p>
+  <p class="note">기록 안 함 = 분석은 끝났지만 기준 미달·기타 행동·사람 없음. 실패 = 파일·카메라·AI 서버 오류.</p>
 </section>
 
 <section class="card" aria-labelledby="action-title">
@@ -61,7 +105,7 @@
           <td>{{ r.job.user.username }}</td>
           <td>{{ r.action }}</td>
           <td><span class="tag {% if r.job.status == 'SUCCESS' %}ok{% elif r.job.status == 'FAILURE' %}fail{% endif %}">{{ r.job.status }}</span></td>
-          <td>{% for e in r.job.events.all %}{{ e.get_event_type_display }}{% empty %}-{% endfor %}</td>
+          <td>{% for e in r.job.events.all %}{{ e|behavior_name }}{% empty %}-{% endfor %}</td>
           <td>{{ r.job.created_at|date:"m-d H:i" }}</td>
         </tr>
       {% empty %}
@@ -73,6 +117,7 @@
 </section>
 
 {{ chart_data|json_script:"chart-data" }}
+{% endtimezone %}
 {% endblock %}
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>

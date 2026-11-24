@@ -1,51 +1,92 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static action_labels %}
 {% block title %}기록 · desk habit.{% endblock %}
 {% block content %}
-<h1>활동 기록</h1>
-<p class="muted">최근 7일. 시간은 버튼·화면 연결 기준 추정이며, 행동 횟수는 AI가 기록한 뒤 정정한 것을 뺀 값입니다.</p>
-
-<section class="card" aria-labelledby="days-title">
-  <h2 id="days-title">일별 시간·행동</h2>
-  <div class="table-scroll">
-    <table>
-      <thead><tr><th scope="col">날짜</th><th scope="col">순공</th><th scope="col">휴식</th><th scope="col">자리 비움</th><th scope="col">복귀 확인 중</th><th scope="col">확인 불가</th><th scope="col">음료</th><th scope="col">손 흔들기</th><th scope="col">걷기</th></tr></thead>
-      <tbody>
-      {% for d in days %}
-        <tr>
-          <td>{{ d.date|date:"m/d (D)" }}</td>
-          <td data-sec="{{ d.seconds.STUDY }}"></td><td data-sec="{{ d.seconds.BREAK }}"></td>
-          <td data-sec="{{ d.seconds.AWAY }}"></td><td data-sec="{{ d.seconds.AWAY_PENDING }}"></td><td data-sec="{{ d.seconds.UNKNOWN }}"></td>
-          <td>{{ d.events.DRINK }}</td><td>{{ d.actions.wave }}</td><td>{{ d.actions.walk_turn_walk }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+<div class="report-head">
+  <div>
+    <h1>활동 기록</h1>
+    <p class="date-line muted">{{ first|date:"Y.m.d" }} – {{ today|date:"Y.m.d" }}</p>
   </div>
-</section>
+  <nav class="report-period" aria-label="기록 조회 기간">
+    <a href="?period=7d"{% if period == "7d" %} aria-current="page"{% endif %}>최근 7일</a>
+    <a href="?period=4w"{% if period == "4w" %} aria-current="page"{% endif %}>최근 4주</a>
+  </nav>
+</div>
+
+<dl class="tiles report-kpis">
+  <div class="tile study"><dt class="tile-label">총 공부 시간</dt><dd class="tile-value">{{ summary.study }}</dd></div>
+  <div class="tile rest"><dt class="tile-label">휴식 시간</dt><dd class="tile-value">{{ summary.break }}</dd></div>
+  <div class="tile report-drink"><dt class="tile-label">음료 섭취 횟수</dt><dd class="tile-value">{{ summary.drink }}회</dd></div>
+  <div class="tile report-movement"><dt class="tile-label">휴식 활동 횟수</dt><dd class="tile-value">{{ summary.movement }}회</dd></div>
+</dl>
+
+<div class="report-charts">
+  {% for chart in charts %}
+  <section class="card report-chart" aria-labelledby="{{ chart.id }}-title">
+    <h2 id="{{ chart.id }}-title">{{ chart.title }}</h2>
+    {% if chart.detail %}<p class="note">{{ chart.detail }}</p>{% endif %}
+    {% if chart.has_data %}
+    <div class="report-plot" hidden>
+      <canvas id="{{ chart.id }}" role="img" aria-labelledby="{{ chart.id }}-title"></canvas>
+    </div>
+    <p class="report-empty muted" data-chart-fallback>그래프를 표시할 수 없습니다.</p>
+    {% else %}
+    <p class="report-empty muted">선택한 기간에 표시할 기록이 없습니다.</p>
+    {% endif %}
+  </section>
+  {% endfor %}
+</div>
 
 <section class="card" aria-labelledby="events-title">
-  <h2 id="events-title">AI 행동 기록 <small class="muted">(잘못 인식된 기록은 정정하면 집계에서 빠집니다)</small></h2>
+  <h2 id="events-title">최근 행동 기록</h2>
+  <p class="note">오인식으로 표시한 행동은 통계에서 제외됩니다.</p>
+  <ul class="report-events">
+    {% for e in events %}
+      <li>
+        <div class="report-event-info{% if not e.is_valid %} invalid{% endif %}">
+          <strong>{{ e|behavior_name }}</strong>
+          <div class="muted">
+            <time datetime="{{ e.occurred_at|date:'c' }}">{{ e.occurred_at|date:"m-d H:i" }}</time>
+            · {{ e.get_source_display }} · 모델 점수 {{ e.confidence|floatformat:2 }}
+          </div>
+        </div>
+        <div class="report-event-actions">
+          {% if e.job_id %}<a href="{% url 'analyses_detail' e.job_id %}">분석 상세</a>{% endif %}
+          <button type="button" class="chip" data-event="{{ e.id }}" data-valid="{{ e.is_valid|yesno:'1,0' }}">{% if e.is_valid %}오인식으로 표시{% else %}정정 취소{% endif %}</button>
+        </div>
+      </li>
+    {% empty %}
+      <li class="muted">선택한 기간에 행동 기록이 없습니다.</li>
+    {% endfor %}
+  </ul>
+  <p class="error" id="report-error" role="alert"></p>
+</section>
+
+<details class="card report-history">
+  <summary>상세 분석 이력</summary>
   <div class="table-scroll">
     <table>
-      <thead><tr><th scope="col">시각</th><th scope="col">행동</th><th scope="col">모델 라벨</th><th scope="col">점수</th><th scope="col">분석</th><th scope="col">정정</th></tr></thead>
+      <thead><tr><th scope="col">일시</th><th scope="col">입력 방식</th><th scope="col">제목</th><th scope="col">상태</th><th scope="col">예측 행동</th><th scope="col">상세</th></tr></thead>
       <tbody>
-      {% for e in events %}
-        <tr class="{% if not e.is_valid %}invalid{% endif %}">
-          <td>{{ e.occurred_at|date:"m-d H:i" }}</td>
-          <td>{{ e.get_event_type_display }}</td>
-          <td>{{ e.action_label }}</td>
-          <td>{{ e.confidence|floatformat:2 }}</td>
-          <td>{% if e.job_id %}<a href="{% url 'analyses_detail' e.job_id %}">보기</a>{% else %}-{% endif %}</td>
-          <td><button type="button" class="chip" data-event="{{ e.id }}" data-valid="{{ e.is_valid|yesno:'1,0' }}">{% if e.is_valid %}오인식으로 표시{% else %}정정 취소{% endif %}</button></td>
+      {% for job in jobs %}
+        <tr>
+          <td>{{ job.created_at|date:"m-d H:i" }}</td>
+          <td>{{ job.get_input_type_display }}</td>
+          <td>{{ job.title|default:"-" }}</td>
+          <td><span class="tag {% if job.status == 'SUCCESS' %}ok{% elif job.status == 'FAILURE' %}fail{% endif %}">{{ job.get_status_display }}</span></td>
+          <td>{% for prediction in job.predictions.all %}{{ prediction.action_label|action_name }}{% if not forloop.last %}, {% endif %}{% empty %}-{% endfor %}</td>
+          <td><a href="{% url 'analyses_detail' job.pk %}">보기</a></td>
         </tr>
       {% empty %}
-        <tr><td colspan="6" class="muted">최근 7일 행동 기록이 없습니다.</td></tr>
+        <tr><td colspan="6" class="muted">선택한 기간에 분석 작업이 없습니다.</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
-  <p class="error" id="report-error" role="alert"></p>
-</section>
+</details>
+{{ chart_data|json_script:"report-chart-data" }}
 {% endblock %}
-{% block scripts %}<script src="{% static 'js/reports.js' %}"></script>{% endblock %}
+{% block scripts %}
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script defer src="{% static 'js/reports.js' %}"></script>
+{% endblock %}
