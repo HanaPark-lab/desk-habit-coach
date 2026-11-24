@@ -3,9 +3,8 @@
 // - /analyses/<id>/: 상태·결과 + 제목·메모 수정·삭제
 // 기록 여부(record)는 서버가 판정한 값을 그대로 보여 준다.
 (() => {
-  const { api, errorText, el } = window.App;
+  const { api, errorText, el, actionName } = window.App;
   const $ = (id) => document.getElementById(id);
-  const ACTIONS = { drink_return: "물 마시기", wave: "손 흔들기", walk_turn_walk: "걷기", other: "기타 동작" };
   const STATUS = { PENDING: "대기", STARTED: "처리 중", SUCCESS: "완료", FAILURE: "실패" };
   const POLL_MS = 2000;
   const inputName = (t) => (t === "IPCAM" ? "IP Webcam" : "영상 업로드");
@@ -34,7 +33,7 @@
       const rows = job.predictions.map((p) =>
         el("tr", {},
           el("td", { textContent: String(p.track_id) }),
-          el("td", {}, el("strong", { textContent: ACTIONS[p.action_label] || p.action_label }), el("br"), el("small", { className: "muted", textContent: p.action_label })),
+          el("td", {}, el("strong", { textContent: actionName(p.action_label) }), el("br"), el("small", { className: "muted", textContent: p.action_label })),
           el("td", { textContent: p.confidence.toFixed(2) }),
           el("td", { textContent: String(p.window_count) })
         )
@@ -63,9 +62,6 @@
         return;
       }
       if (afterDone) afterDone();
-      if (inline && !document.querySelector(`[data-job-row="${CSS.escape(String(id))}"]`)) {
-        location.replace(`/analyses/?job=${encodeURIComponent(id)}`); // 최근 이력 표에 새 작업 반영
-      }
     } catch (x) {
       $("status-text").textContent = x.status === 404 ? "작업을 찾을 수 없습니다." : "상태를 불러오지 못했습니다. 다시 시도하는 중…";
       if (x.status !== 404) pollTimer = setTimeout(() => poll(id), POLL_MS * 2);
@@ -200,7 +196,7 @@
     if (!confirm("이 분석 작업과 결과, 행동 기록을 삭제할까요? 되돌릴 수 없습니다.")) return;
     try {
       await api(`/api/analyses/${id}/`, { method: "DELETE" });
-      location.href = "/analyses/";
+      location.href = "/reports/";
     } catch (x) {
       $("edit-msg").textContent = errorText(x);
     }

@@ -1,9 +1,8 @@
-"""분석 화면 (UI_UX.md): 분석 화면(요청·결과·이력) · 작업 상세 · 카메라 중계."""
+"""분석 화면 (UI_UX.md): 분석 화면(요청·결과) · 작업 상세 · 카메라 중계."""
 import time
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count
 from django.http import Http404, HttpResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils.crypto import constant_time_compare, salted_hmac
@@ -22,10 +21,8 @@ def _page_config():
 
 @login_required
 def job_list(request):
-    """교과 '사용자 분석 화면': 입력 선택·분석 시작·상태·사람별 결과·최근 이력을 한 화면에."""
-    jobs = (request.user.analysis_jobs.annotate(people=Count("predictions"))
-            .prefetch_related("events", "predictions").order_by("-created_at")[:20])  # 집계 쿼리라 정렬 명시
-    return render(request, "analyses/list.html", {"jobs": jobs, "page_config": _page_config()})
+    """교과 '사용자 분석 화면': 입력 선택·분석 시작·상태·사람별 결과을 한 화면에."""
+    return render(request, "analyses/list.html", {"page_config": _page_config()})
 
 
 STREAM_MAX_SECONDS = 600  # 미리보기 1회 최대 10분 (서버 스레드를 오래 붙잡지 않게)

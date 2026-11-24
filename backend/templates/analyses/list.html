@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static action_labels %}
 {% block title %}Vision AI 동작 분석 · desk habit.{% endblock %}
 {% block content %}
 <h1 class="course-title">Vision AI 동작 분석</h1>
-<p class="muted">영상에서 사람을 추적하고(YOLO Pose) 30 Step × 38 Feature로 Random Forest가 동작을 예측합니다. 학습한 동작: 물 마시기 · 손 흔들기 · 걷기 (그 외 = 기타)</p>
+<p class="muted">영상에서 사람을 추적하고(YOLO Pose) 30 Step × 38 Feature로 Random Forest가 동작을 예측합니다. 예측 행동은 {{ "drink_return"|action_name }}, {{ "wave"|action_name }}, {{ "walk_turn_walk"|action_name }}, {{ "other"|action_name }}입니다.</p>
 
 <div class="tabs course-tabs" role="tablist" aria-label="입력 방식">
   <button type="button" role="tab" data-mode="UPLOAD" aria-selected="true" aria-controls="upload-fields">영상 업로드</button>
@@ -30,7 +30,7 @@
         <label>수집 시간(초) <input type="number" name="capture_seconds" min="5" max="15" step="1"></label>
         <p class="note">시작을 누르면 서버(Celery Worker)가 허용된 카메라에서 지정한 시간만큼 영상을 모은 뒤 분석합니다. 그 시간 동안 카메라 앞에서 동작하세요.</p>
       </div>
-      <label>제목 <small class="muted">(선택)</small> <input name="job_title" maxlength="150" placeholder="오후 물 마시기"></label>
+      <label>제목 <small class="muted">(선택)</small> <input name="job_title" maxlength="150" placeholder="오후 음료 섭취"></label>
       <p id="form-error" class="error" role="alert"></p>
       <button type="submit" class="primary start-btn">▶ AI 분석 시작</button>
     </form>
@@ -54,31 +54,6 @@
   </div>
 </div>
 
-<section class="card" aria-labelledby="recent-title">
-  <div class="page-head"><h2 id="recent-title">최근 분석 이력</h2></div>
-  <div class="table-scroll">
-    <table>
-      <thead><tr><th scope="col">시각</th><th scope="col">입력</th><th scope="col">상태</th><th scope="col">예측 동작 (Track 1)</th><th scope="col">신뢰도</th><th scope="col">사람</th><th scope="col">상세</th></tr></thead>
-      <tbody>
-      {% for job in jobs %}
-        <tr data-job-row="{{ job.pk }}">
-          <td>{{ job.created_at|date:"m-d H:i" }}</td>
-          <td>{{ job.get_input_type_display }}</td>
-          <td><span class="tag {% if job.status == 'SUCCESS' %}ok{% elif job.status == 'FAILURE' %}fail{% endif %}">{{ job.get_status_display }}</span></td>
-          {% with p=job.predictions.all.0 %}
-            <td>{{ p.action_label|default:"-" }}</td>
-            <td>{% if p %}{{ p.confidence|floatformat:2 }}{% else %}-{% endif %}</td>
-          {% endwith %}
-          <td>{{ job.people }}</td>
-          <td><a href="{% url 'analyses_detail' job.pk %}">보기</a> · <a href="?job={{ job.pk }}">여기서 보기</a></td>
-        </tr>
-      {% empty %}
-        <tr><td colspan="7" class="muted">아직 분석 작업이 없습니다. 위에서 첫 분석을 시작해 보세요.</td></tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</section>
 {{ page_config|json_script:"page-config" }}
 {% endblock %}
 {% block scripts %}<script src="{% static 'js/analyses.js' %}"></script>{% endblock %}
