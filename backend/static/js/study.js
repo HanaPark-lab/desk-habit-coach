@@ -1,18 +1,25 @@
-// 집중 모드: 세션 버튼 → /api/study/sessions/, 카메라를 켜면 1초마다 프레임 1장을 /frames/ 로 보내
-// 자리 비움·휴대폰을 판단하고, 돌아온 관절·상자를 영상 위에 그린다. 프레임은 저장하지 않는다.
+// 집중 모드: 세션 버튼 → /api/study/sessions/. 카메라를 켜면 AI 착석 추정 모드(초당 6장 /frames/),
+// 끄면 수동 타이머 모드. 상태·시간은 서버 응답으로 맞추고, 화면은 1초마다 그 사이만 채운다. 프레임은 저장하지 않는다.
 (() => {
   const { api, errorText, pad } = window.App;
   const $ = (id) => document.getElementById(id);
-  const FOCUS_GOAL = 50 * 60;   // 50분 집중 → 휴식 권장
+  const FOCUS_GOAL = 50 * 60;   // 50분 집중 → 휴식 권장 (선택)
   const FRAME_MS = 1000 / 6;    // 6fps = 실시간 행동 모델 학습 주기 (한 번에 한 요청, 늦으면 그 프레임은 건너뜀)
   const HEARTBEAT_MS = 30000;   // 카메라를 끈 상태의 연결 신호
-  const PILL = { STUDY: "집중 모드 ON", BREAK: "휴식 중", AWAY: "자리 비움", UNKNOWN: "연결 확인 중" };
+  const PILL = {
+    AI: { STUDY: "착석 (AI 추정)", BREAK: "휴식 중", AWAY: "자리 비움", UNKNOWN: "확인 중 · 확인 불가" },
+    MANUAL: { STUDY: "공부 중 (수동)", BREAK: "휴식 중", AWAY: "자리 비움", UNKNOWN: "연결 끊김 · 확인 불가" },
+  };
   const EDGES = [[0, 5], [0, 6], [5, 6], [5, 7], [7, 9], [6, 8], [8, 10], [5, 11], [6, 12], [11, 12], [11, 13], [13, 15], [12, 14], [14, 16]];
   let session = null;
-  let studySeconds = 0;
+  let secs = { AUTO: 0, MANUAL: 0, UNKNOWN: 0, AWAY: 0 }; // 서버 값 + 다음 응답까지 화면에서만 증가
+  let drinks = Number($("t-drink").textContent.replace(/\D/g, "")) || 0;
   let stream = null;
   let busy = false;
   let breakAlerted = false;
+  const breakOpt = $("opt-break");
+  breakOpt.checked = localStorage.getItem("breakAlert") === "1";
+  breakOpt.addEventListener("change", () => localStorage.setItem("breakAlert", breakOpt.checked ? "1" : "0"));
 
   const mmss = (sec) => `${pad(Math.floor(sec / 60))}:${pad(Math.floor(sec % 60))}`;
   const focusElapsed = () =>
@@ -31,15 +38,20 @@
     $("btn-pause").hidden = !session || session.status !== "ACTIVE";
     $("btn-resume").hidden = !session || session.status !== "PAUSED";
     $("btn-end").hidden = !session;
-    $("focus-pill").textContent = session ? PILL[session.current_state] || session.status : s ? "세션 종료" : "대기";
+    const mode = session ? session.mode : "MANUAL";
+    $("focus-pill").textContent = session ? PILL[mode][session.current_state] || session.status : s ? "세션 종료" : "대기";
     $("focus-pill").dataset.state = session ? session.current_state : "";
+    $("mode-label").textContent = mode === "AI" ? "AI 착석 추정" : "수동 타이머";
     if (!s) return;
-    studySeconds = s.seconds.STUDY;
+    secs = { ...s.study_seconds_by_source, UNKNOWN: s.seconds.UNKNOWN, AWAY: s.seconds.AWAY };
+    $("opt-phone").checked = !!s.phone_detection;
+    $("tile-phone").hidden = !s.phone_detection;
     $("t-phone").textContent = `${s.distractions}회`;
     if (!session && stream) toggleCamera();
     paint();
   }
 
+  const min = (sec) => `${Math.floor(sec / 60)}분`;
   // 1초마다 시계 갱신 (서버 값 + 경과 시간)
   function paint() {
     const live = session && session.current_state === "STUDY";
@@ -47,15 +59,22 @@
     $("focus-clock").textContent = mmss(elapsed);
     $("focus-bar").style.width = `${Math.min(100, (elapsed / FOCUS_GOAL) * 100)}%`;
     const left = FOCUS_GOAL - elapsed;
-    $("break-countdown").textContent = live ? (left > 0 ? mmss(left) : "지금 쉬어요") : "--:--";
-    if (live && left <= 0 && !breakAlerted) {
+    $("break-countdown").textContent = !breakOpt.checked ? "알림 꺼짐" : live ? (left > 0 ? mmss(left) : "지금 쉬어요") : "--:--";
+    if (breakOpt.checked && live && left <= 0 && !breakAlerted) {
       breakAlerted = true;
       showAlert("50분 집중했어요. 잠깐 쉬어 갈까요?", "물 한 잔 마시고 어깨를 풀어 보세요. 일시정지를 누르면 휴식으로 기록됩니다.");
     }
-    $("t-study").textContent = `${Math.floor(studySeconds / 60)}분`;
+    $("t-ai").textContent = min(secs.AUTO);
+    $("t-manual").textContent = min(secs.MANUAL);
+    $("t-other").textContent = `${min(secs.UNKNOWN)} · ${min(secs.AWAY)}`;
+    $("t-drink").textContent = `${drinks}회`;
   }
   setInterval(() => {
-    if (session && session.current_state === "STUDY") studySeconds++;
+    if (session && session.status === "ACTIVE") {
+      const st = session.current_state;
+      if (st === "STUDY") secs[session.mode === "AI" ? "AUTO" : "MANUAL"]++;
+      else if (st in secs) secs[st]++;
+    }
     paint();
   }, 1000);
 
@@ -90,9 +109,15 @@
   const grab = document.createElement("canvas");
 
   // 카메라 켜기 = AI 착석 추정 모드, 끄기 = 수동 타이머 모드 (서버에 모드 전환 요청)
-  const setMode = (mode) => session && session.status !== "ENDED" &&
-    api(url("mode"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode }) })
+  const setMode = (mode, extra = {}) => session && session.status !== "ENDED" &&
+    api(url("mode"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode, ...extra }) })
       .then(render).catch((x) => ($("study-error").textContent = errorText(x)));
+  $("opt-phone").addEventListener("change", (e) => {
+    if (session) setMode(session.mode, { phone_detection: e.target.checked });
+    else e.target.checked = false;
+  });
+  // 페이지를 떠나면 카메라를 끈다 (서버 상태는 프레임이 끊겨 5초 뒤 '확인 불가'로 정산됨)
+  window.addEventListener("pagehide", () => stream && stream.getTracks().forEach((t) => t.stop()));
 
   async function toggleCamera() {
     if (stream) {
@@ -112,8 +137,12 @@
       $("live-empty").hidden = true;
       $("btn-camera").textContent = "카메라 끄기";
       await setMode("AI");
-    } catch {
-      $("study-error").textContent = "카메라를 사용할 수 없습니다. 브라우저 권한을 확인해 주세요.";
+    } catch (x) {
+      $("study-error").textContent = {
+        NotAllowedError: "카메라 권한이 거부되었습니다. 주소창의 카메라 아이콘에서 허용해 주세요.",
+        NotFoundError: "연결된 카메라를 찾을 수 없습니다.",
+        NotReadableError: "다른 프로그램이 카메라를 쓰고 있습니다.",
+      }[x && x.name] || "카메라를 사용할 수 없습니다. 브라우저 권한을 확인해 주세요. (localhost 또는 https에서만 동작)";
     }
   }
   $("btn-camera").addEventListener("click", toggleCamera);
@@ -173,6 +202,7 @@
       render(data);
       draw(data.persons, data.phones);
       $("live-status").textContent = { present: "", absent: "· 자리에 사람이 보이지 않아요", unclear: "· 확인 어려움 (가림·여러 명·흐림)" }[data.observation] ?? "";
+      if (data.recorded_event === "DRINK") drinks++; // 서버에 저장된 경우에만 횟수 증가
       if (data.recorded_event) showAlert({ DRINK: "물 마시기를 기록했어요", MOVEMENT: "움직임을 기록했어요" }[data.recorded_event] || "행동을 기록했어요",
         "실시간 AI가 인식했어요. 잘못 기록됐다면 리포트 화면에서 정정할 수 있어요.");
       if (data.phone_alert) showAlert("잠깐, 다시 집중해 볼까요?", "휴대폰 사용으로 추정되는 행동이 일정 시간 지속되었어요.");

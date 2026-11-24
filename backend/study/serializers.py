@@ -20,7 +20,7 @@ class StudySessionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = StudySession
-        fields = ["id", "status", "mode", "roi", "started_at", "ended_at", "last_seen_at", "last_seq",
+        fields = ["id", "status", "mode", "roi", "phone_detection", "started_at", "ended_at", "last_seen_at", "last_seq",
                   "current_state", "current_started_at", "seconds", "study_seconds_by_source", "distractions", "intervals"]
         read_only_fields = fields
 
