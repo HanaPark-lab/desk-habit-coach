@@ -51,16 +51,21 @@ def test_active_windows_drops_idle():
     assert active_windows(np.stack([still, still])).shape == (2, 1140)          # 전부 정지면 모두 유지
 
 
-def test_model_profiles():
+def test_service_model_contract():
+    import json
+
     from main import MODEL_DIR
-    from services.model_loader import load_bundle
-    assert load_bundle(MODEL_DIR, "service").profile == "service"
-    for profile, msg in (("nope", "알 수 없는"), ("course", "모델 파일이 없습니다")):
-        if profile == "course" and (MODEL_DIR / "course" / "rf_action_baseline.joblib").exists():
-            assert len(load_bundle(MODEL_DIR, "course").classes) == 6  # 교과 모델을 넣은 경우
-            continue
-        with pytest.raises(RuntimeError, match=msg):
-            load_bundle(MODEL_DIR, profile)
+    from services.model_loader import COLUMNS_FILE, load_bundle
+    from src.sequence_utils import TARGET_FPS
+
+    bundle = load_bundle(MODEL_DIR, "service")
+    assert bundle.profile == "service"
+    assert set(bundle.classes) == {"drink_return", "wave", "walk_turn_walk", "other"}
+    assert bundle.model.n_features_in_ == 1140
+    assert bundle.info["sequence_steps"] == SEQ_STEPS == 30
+    assert bundle.info["features_per_step"] == FEATURES_PER_STEP == 38
+    assert bundle.info["target_fps"] == TARGET_FPS == 6
+    assert json.loads((MODEL_DIR / "service" / COLUMNS_FILE).read_text()) == feature_columns()
 
 
 def test_health(client):
