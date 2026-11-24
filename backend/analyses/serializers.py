@@ -2,16 +2,11 @@ from django.conf import settings
 from django.urls import reverse
 from rest_framework import serializers
 
-from study.models import BehaviorEvent
-
-from .habits import OTHER_LABEL, records_habits, top_event
+from .habits import OTHER_LABEL, behavior_name, records_habits, top_event
 from .models import AnalysisJob, PersonPrediction
 
-EVENT_NAMES = dict(BehaviorEvent.EventType.choices)
-
-
 class PersonPredictionSerializer(serializers.ModelSerializer):
-    event_type = serializers.SerializerMethodField()   # "" = 기타 동작
+    event_type = serializers.SerializerMethodField()   # "" = 기타 행동
     event_score = serializers.SerializerMethodField()
 
     class Meta:
@@ -57,7 +52,7 @@ class AnalysisJobSerializer(serializers.ModelSerializer):
         event = next(iter(job.events.all()), None)
         if event:
             note = "" if event.is_valid else " (오인식으로 정정됨)"
-            return {"recorded": True, "event_type": event.event_type, "reason": f"{EVENT_NAMES[event.event_type]} 1회 기록{note}"}
+            return {"recorded": True, "event_type": event.event_type, "reason": f"{behavior_name(event)} 1회 기록{note}"}
         preds = list(job.predictions.all())
         if not preds:
             reason = job.error_message or "분석할 사람을 찾지 못했습니다."
@@ -66,7 +61,7 @@ class AnalysisJobSerializer(serializers.ModelSerializer):
         elif not records_habits(job.model_profile):
             reason = f"{job.model_profile} 모델 결과는 습관 기록에 쓰지 않습니다 (교과 동작 분류 전용)."
         elif all(p.action_label == OTHER_LABEL for p in preds):
-            reason = "학습한 행동이 아닌 동작(기타)으로 인식되어 기록하지 않았습니다."
+            reason = "기타 행동으로 인식되어 생활 습관 기록에서 제외했습니다."
         else:
             reason = "판단 보류: 점수가 기준보다 낮아 기록하지 않았습니다."
         return {"recorded": False, "event_type": "", "reason": reason}

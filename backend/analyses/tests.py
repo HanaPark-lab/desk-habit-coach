@@ -164,6 +164,27 @@ class AnalysisApiTests(TestCase):
         self.assertContains(r, "desk_cam_1")
         self.assertNotContains(r, "camera.test")  # 카메라 주소는 브라우저에 보내지 않음
 
+    def test_history_shows_only_own_recent_jobs_in_reports(self):
+        from datetime import timedelta
+
+        self.client.force_login(self.alice)
+        failed = self.job_for(self.alice, title="내 실패 작업", status="FAILURE")
+        unrecorded = self.job_for(self.alice, title="내 미기록 작업", status="SUCCESS")
+        PersonPrediction.objects.create(job=unrecorded, track_id=1, action_label="other", confidence=1, window_count=1)
+        private = self.job_for(self.bob, title="다른 사용자 작업")
+        old = self.job_for(self.alice, title="지난 분석 작업")
+        AnalysisJob.objects.filter(pk=old.pk).update(created_at=timezone.now() - timedelta(days=7))
+
+        self.assertNotContains(self.client.get(f"/analyses/?job={failed.pk}"), 'id="recent-title"')
+        report = self.client.get("/reports/")
+        self.assertContains(report, "내 실패 작업")
+        self.assertContains(report, "내 미기록 작업")
+        self.assertContains(report, "기타 행동")
+        self.assertContains(report, f"/analyses/{unrecorded.pk}/")
+        self.assertNotContains(report, "다른 사용자 작업")
+        self.assertNotContains(report, "지난 분석 작업")
+        self.assertEqual(self.client.get(f"/analyses/{private.pk}/").status_code, 404)
+
 
 class JudgeTests(SimpleTestCase):
     def test_drink_over_threshold(self):

@@ -9,11 +9,23 @@ SERVICE_PROFILE = "service"
 PROFILE_EVENT_LABELS = {
     SERVICE_PROFILE: {
         "DRINK": ("drink_return",),
-        "MOVEMENT": ("wave", "walk_turn_walk"),  # 손 흔들기(어깨 풀기)·걷기 = 스트레칭·움직임
+        "MOVEMENT": ("wave", "walk_turn_walk"),  # 어깨 스트레칭·잠깐 자리 비움 동작
     },
     "course": {},
 }
 EVENT_LABELS = PROFILE_EVENT_LABELS[SERVICE_PROFILE]
+ACTION_NAMES = {
+    "drink_return": "음료 섭취",
+    "wave": "어깨 스트레칭",
+    "walk_turn_walk": "잠깐 자리 비움",
+    "other": "기타 행동",
+}
+
+
+def behavior_name(event):
+    if event.action_label in EVENT_LABELS.get(event.event_type, ()):
+        return ACTION_NAMES[event.action_label]
+    return "휴식 활동" if event.event_type == "MOVEMENT" else event.get_event_type_display()
 
 
 def records_habits(profile):
