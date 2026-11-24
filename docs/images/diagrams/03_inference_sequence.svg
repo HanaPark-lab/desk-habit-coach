@@ -1,1 +1,71 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1120" viewBox="0 0 1200 1120"><defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="#89928e"/></marker></defs><rect width="1200" height="1120" fill="#fafafa"/><g font-family="NanumGothic, sans-serif" font-size="14" fill="#23332c"><text x="35" y="34" font-size="22">03. AI 분석 버튼 구현 흐름</text><rect x="25" y="105" width="1150" height="236" rx="5" fill="#e2eee4" opacity=".65"/><text x="35" y="121" font-size="12">요청 접수</text><rect x="25" y="341" width="1150" height="236" rx="5" fill="#fff0d8" opacity=".65"/><text x="35" y="357" font-size="12">비동기 처리</text><rect x="25" y="577" width="1150" height="118" rx="5" fill="#e0eaf5" opacity=".65"/><text x="35" y="593" font-size="12">AI 추론</text><rect x="25" y="695" width="1150" height="118" rx="5" fill="#eae3f2" opacity=".65"/><text x="35" y="711" font-size="12">결과 저장</text><rect x="25" y="813" width="1150" height="236" rx="5" fill="#eeeeee" opacity=".65"/><text x="35" y="829" font-size="12">상태 조회 · 2초 간격 반복</text><rect x="25" y="53" width="150" height="38" rx="4" fill="#dce8f8" stroke="#86a8ca"/><text x="100" y="77" text-anchor="middle">Browser</text><path d="M100 91 V1070" stroke="#b2b8b5" stroke-dasharray="5 4"/><rect x="225" y="53" width="150" height="38" rx="4" fill="#dce8f8" stroke="#86a8ca"/><text x="300" y="77" text-anchor="middle">Django / DRF</text><path d="M300 91 V1070" stroke="#b2b8b5" stroke-dasharray="5 4"/><rect x="425" y="53" width="150" height="38" rx="4" fill="#dce8f8" stroke="#86a8ca"/><text x="500" y="77" text-anchor="middle">PostgreSQL</text><path d="M500 91 V1070" stroke="#b2b8b5" stroke-dasharray="5 4"/><rect x="625" y="53" width="150" height="38" rx="4" fill="#dce8f8" stroke="#86a8ca"/><text x="700" y="77" text-anchor="middle">Redis</text><path d="M700 91 V1070" stroke="#b2b8b5" stroke-dasharray="5 4"/><rect x="825" y="53" width="150" height="38" rx="4" fill="#dce8f8" stroke="#86a8ca"/><text x="900" y="77" text-anchor="middle">Celery Worker</text><path d="M900 91 V1070" stroke="#b2b8b5" stroke-dasharray="5 4"/><rect x="1025" y="53" width="150" height="38" rx="4" fill="#dce8f8" stroke="#86a8ca"/><text x="1100" y="77" text-anchor="middle">FastAPI</text><path d="M1100 91 V1070" stroke="#b2b8b5" stroke-dasharray="5 4"/><path d="M100 145 H300" stroke="#89928e" marker-end="url(#a)"/><text x="200.0" y="137" text-anchor="middle" font-size="13">POST /api/analyses/ · MP4 / IP Webcam</text><path d="M300 204 H500" stroke="#89928e" marker-end="url(#a)"/><text x="400.0" y="196" text-anchor="middle" font-size="13">AnalysisJob 생성 · PENDING</text><path d="M300 263 H700" stroke="#89928e" marker-end="url(#a)"/><text x="500.0" y="255" text-anchor="middle" font-size="13">enqueue(Job ID)</text><path d="M300 322 H100" stroke="#89928e" marker-end="url(#a)"/><text x="200.0" y="314" text-anchor="middle" font-size="13">HTTP 202 + Job ID</text><path d="M700 381 H900" stroke="#89928e" marker-end="url(#a)"/><text x="800.0" y="373" text-anchor="middle" font-size="13">작업 전달</text><path d="M900 440 H500" stroke="#89928e" marker-end="url(#a)"/><text x="700.0" y="432" text-anchor="middle" font-size="13">STARTED</text><path d="M900 499 h45 v17 h-45" fill="none" stroke="#89928e" marker-end="url(#a)"/><text x="892" y="491" text-anchor="end">MP4 읽기 또는 IP Webcam 수집</text><path d="M900 558 H1100" stroke="#89928e" marker-end="url(#a)"/><text x="1000.0" y="550" text-anchor="middle" font-size="13">predict_video() · MP4</text><path d="M1100 617 h45 v17 h-45" fill="none" stroke="#89928e" marker-end="url(#a)"/><text x="1092" y="609" text-anchor="end">YOLO Pose → Feature → RF</text><path d="M1100 676 H900" stroke="#89928e" marker-end="url(#a)"/><text x="1000.0" y="668" text-anchor="middle" font-size="13">Track ID · Action · Confidence</text><path d="M900 735 H500" stroke="#89928e" marker-end="url(#a)"/><text x="700.0" y="727" text-anchor="middle" font-size="13">SUCCESS · 예측 / 조건부 행동 저장</text><path d="M900 794 H500" stroke="#89928e" marker-end="url(#a)"/><text x="700.0" y="786" text-anchor="middle" font-size="13">또는 FAILURE · 오류 코드 저장</text><path d="M100 853 H300" stroke="#89928e" marker-end="url(#a)"/><text x="200.0" y="845" text-anchor="middle" font-size="13">GET /api/analyses/{id}/status/</text><path d="M300 912 H500" stroke="#89928e" marker-end="url(#a)"/><text x="400.0" y="904" text-anchor="middle" font-size="13">본인 작업 ORM 조회</text><path d="M500 971 H300" stroke="#89928e" marker-end="url(#a)"/><text x="400.0" y="963" text-anchor="middle" font-size="13">상태 · 예측 · 기록</text><path d="M300 1030 H100" stroke="#89928e" marker-end="url(#a)"/><text x="200.0" y="1022" text-anchor="middle" font-size="13">결과 JSON</text></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1120" viewBox="0 0 1200 1120">
+<defs>
+<marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+<polygon points="0,0 8,4 0,8" fill="#89928e"/>
+</marker>
+</defs>
+<rect width="1200" height="1120" fill="#fafafa"/>
+<g font-family="NanumGothic, sans-serif" font-size="14" fill="#23332c">
+<text x="35" y="34" font-size="22">03. AI 분석 버튼 구현 흐름</text>
+<rect x="25" y="105" width="1150" height="236" rx="5" fill="#e2eee4" opacity=".65"/>
+<text x="35" y="121" font-size="12">요청 접수</text>
+<rect x="25" y="341" width="1150" height="236" rx="5" fill="#fff0d8" opacity=".65"/>
+<text x="35" y="357" font-size="12">비동기 처리</text>
+<rect x="25" y="577" width="1150" height="118" rx="5" fill="#e0eaf5" opacity=".65"/>
+<text x="35" y="593" font-size="12">AI 추론</text>
+<rect x="25" y="695" width="1150" height="118" rx="5" fill="#eae3f2" opacity=".65"/>
+<text x="35" y="711" font-size="12">결과 저장</text>
+<rect x="25" y="813" width="1150" height="236" rx="5" fill="#eeeeee" opacity=".65"/>
+<text x="35" y="829" font-size="12">상태 조회 · 2초 간격 반복</text>
+<rect x="25" y="53" width="150" height="38" rx="4" fill="#dce8f8" stroke="#86a8ca"/>
+<text x="100" y="77" text-anchor="middle">Browser</text>
+<path d="M100 91 V120 M100 141 V811 M100 832 V1070" stroke="#b2b8b5" stroke-dasharray="5 4"/>
+<rect x="225" y="53" width="150" height="38" rx="4" fill="#dce8f8" stroke="#86a8ca"/>
+<text x="300" y="77" text-anchor="middle">Django / DRF</text>
+<path d="M300 91 V120 M300 141 V1070" stroke="#b2b8b5" stroke-dasharray="5 4"/>
+<rect x="425" y="53" width="150" height="38" rx="4" fill="#dce8f8" stroke="#86a8ca"/>
+<text x="500" y="77" text-anchor="middle">PostgreSQL</text>
+<path d="M500 91 V239 M500 260 V1070" stroke="#b2b8b5" stroke-dasharray="5 4"/>
+<rect x="625" y="53" width="150" height="38" rx="4" fill="#dce8f8" stroke="#86a8ca"/>
+<text x="700" y="77" text-anchor="middle">Redis</text>
+<path d="M700 91 V416 M700 437 V711 M700 732 V770 M700 791 V1070" stroke="#b2b8b5" stroke-dasharray="5 4"/>
+<rect x="825" y="53" width="150" height="38" rx="4" fill="#dce8f8" stroke="#86a8ca"/>
+<text x="900" y="77" text-anchor="middle">Celery Worker</text>
+<path d="M900 91 V1070" stroke="#b2b8b5" stroke-dasharray="5 4"/>
+<rect x="1025" y="53" width="150" height="38" rx="4" fill="#dce8f8" stroke="#86a8ca"/>
+<text x="1100" y="77" text-anchor="middle">FastAPI</text>
+<path d="M1100 91 V1070" stroke="#b2b8b5" stroke-dasharray="5 4"/>
+<path d="M100 145 H300" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
+<text x="200.0" y="137" text-anchor="middle" font-size="13">POST /api/analyses/ · MP4 / IP Webcam</text>
+<path d="M300 204 H500" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
+<text x="400.0" y="196" text-anchor="middle" font-size="13">AnalysisJob 생성 · PENDING</text>
+<path d="M300 263 H700" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
+<text x="500.0" y="255" text-anchor="middle" font-size="13">enqueue(Job ID)</text>
+<path d="M300 322 H100" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
+<text x="200.0" y="314" text-anchor="middle" font-size="13">HTTP 202 + Job ID</text>
+<path d="M700 381 H900" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
+<text x="800.0" y="373" text-anchor="middle" font-size="13">작업 전달</text>
+<path d="M900 440 H500" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
+<text x="700.0" y="432" text-anchor="middle" font-size="13">STARTED</text>
+<path d="M900 499 h45 v17 h-45" fill="none" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
+<text x="892" y="491" text-anchor="end">MP4 읽기 또는 IP Webcam 수집</text>
+<path d="M900 558 H1100" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
+<text x="1000.0" y="550" text-anchor="middle" font-size="13">predict_video() · MP4</text>
+<path d="M1100 617 h45 v17 h-45" fill="none" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
+<text x="1092" y="609" text-anchor="end">YOLO Pose → Feature → RF</text>
+<path d="M1100 676 H900" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
+<text x="1000.0" y="668" text-anchor="middle" font-size="13">Track ID · Action · Confidence</text>
+<path d="M900 735 H500" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
+<text x="700.0" y="727" text-anchor="middle" font-size="13">SUCCESS · 예측 / 조건부 행동 저장</text>
+<path d="M900 794 H500" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
+<text x="700.0" y="786" text-anchor="middle" font-size="13">또는 FAILURE · 오류 코드 저장</text>
+<path d="M100 853 H300" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
+<text x="200.0" y="845" text-anchor="middle" font-size="13">GET /api/analyses/{id}/status/</text>
+<path d="M300 912 H500" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
+<text x="400.0" y="904" text-anchor="middle" font-size="13">본인 작업 ORM 조회</text>
+<path d="M500 971 H300" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
+<text x="400.0" y="963" text-anchor="middle" font-size="13">상태 · 예측 · 기록</text>
+<path d="M300 1030 H100" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
+<text x="200.0" y="1022" text-anchor="middle" font-size="13">결과 JSON</text>
+</g>
+</svg>

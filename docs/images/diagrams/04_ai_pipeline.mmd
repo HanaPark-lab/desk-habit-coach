@@ -1,3 +1,8 @@
+---
+config:
+  flowchart:
+    curve: step
+---
 flowchart TD
  A[영상 입력] --> B[YOLO Pose · 약 6fps · 17 Keypoints] --> C[관절 좌표 정규화] --> D[38 Features × 30 Steps] --> E[Random Forest · 1,140 Features] --> Q{기록 조건 확인}
  Q --> F[음료 섭취]
