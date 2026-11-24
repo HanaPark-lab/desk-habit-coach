@@ -227,6 +227,10 @@ class BreakRuleTests(AiBase):  # STUDY_BREAK_IMPLEMENTATION.md B01~B12 (B10 중�
         t = self.leave_and_return(910)  # 첫 복귀 관측이 이탈 900초 뒤
         self.assertEqual((t["BREAK"], t["AWAY"]), (900, 0))
 
+    def test_return_one_second_over_15min_is_away(self):
+        t = self.leave_and_return(911)
+        self.assertEqual((t["BREAK"], t["AWAY"]), (0, 901))
+
     def test_b04_return_after_25min_is_all_away(self):
         self.see_range(1, 9, step=1)
         self.see_range(10, 1000, te.ABSENT)
@@ -388,6 +392,16 @@ class RealtimeEventTests(TestCase):  # S05·S06: episode당 1건, 중복·NG 보
         e2 = self.window(80, cands(drink=0.7, other=0.3))                # cooldown 지남 → 새 기록
         self.assertEqual((e1.event_type, e1.source, e1.model_version, e1.action_label), ("DRINK", "REALTIME", "rf-test", "drink_return"))
         self.assertIsNotNone(e2)
+        self.assertEqual(BehaviorEvent.objects.count(), 2)
+
+    def test_wave_and_walk_are_distinct_episodes(self):
+        wave = self.window(10, cands(wave=0.9))
+        walk = self.window(11, cands(walk=0.9))
+        self.assertIsNotNone(wave)
+        self.assertIsNotNone(walk)
+        self.assertEqual((wave.action_label, walk.action_label), ("wave", "walk_turn_walk"))
+        self.assertIsNone(self.window(12, cands(walk=0.9)))
+        self.assertIsNone(self.window(13, cands(wave=0.9)))
         self.assertEqual(BehaviorEvent.objects.count(), 2)
 
     def test_ng_low_score_and_course_not_recorded(self):

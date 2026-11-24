@@ -18,9 +18,9 @@ COOLDOWN = timedelta(seconds=60)
 Source = BehaviorEvent.Source
 
 
-def _duplicate_nearby(user, event_type, at, sources):
+def _duplicate_nearby(user, event_type, label, at, sources):
     return BehaviorEvent.objects.filter(
-        user=user, event_type=event_type, is_valid=True, source__in=sources,
+        user=user, event_type=event_type, action_label=label, is_valid=True, source__in=sources,
         occurred_at__gte=at - COOLDOWN, occurred_at__lte=at + COOLDOWN,
     ).exists()
 
@@ -34,18 +34,19 @@ def record_from_job(job, predictions):
     existing = BehaviorEvent.objects.filter(dedup_key=f"job:{job.pk}").first()
     if existing:
         return existing
-    if _duplicate_nearby(job.user, event_type, job.created_at, [Source.REALTIME]):
+    probabilities = predictions[0]["probabilities"]
+    label = event_label(probabilities, event_type, profile)
+    if _duplicate_nearby(job.user, event_type, label, job.created_at, [Source.REALTIME]):
         return None  # 실시간 분석이 이미 같은 행동을 기록함
-    best = predictions[0]
     event, _ = BehaviorEvent.objects.get_or_create(
         dedup_key=f"job:{job.pk}",
         defaults={
             "user": job.user,
             "session": job.session,
             "job": job,
-            "action_label": best["action_label"],
+            "action_label": label,
             "event_type": event_type,
-            "confidence": round(top_event(best["probabilities"], profile)[1], 4),
+            "confidence": round(top_event(probabilities, profile)[1], 4),
             "occurred_at": job.created_at,
             "source": Source.CLIP,
             "model_version": job.model_version,
@@ -63,24 +64,25 @@ def record_realtime(session, candidates, profile, model_version, at):
         return None
     probs = {c["label"]: c["probability"] for c in candidates}
     event_type, score = top_event(probs, profile)
-    hit = event_type if candidates[0]["label"] != OTHER_LABEL and score >= settings.EVENT_THRESHOLDS[event_type] else ""
+    hit = candidates[0]["label"] != OTHER_LABEL and score >= settings.EVENT_THRESHOLDS[event_type]
+    label = event_label(probs, event_type, profile) if hit else ""
     with transaction.atomic():
         s = StudySession.objects.select_for_update().get(pk=session.pk)
         if s.status != StudySession.Status.ACTIVE:
             return None
         state = dict(s.realtime_state or {})
         recorded = None
-        if hit and state.get("episode") != hit:  # 새 episode 시작
-            last = state.get("last", {}).get(hit)
+        if label and state.get("episode") != label:  # 새 episode 시작
+            last = state.get("last", {}).get(label)
             cooled = not last or at - datetime.fromisoformat(last) >= COOLDOWN
-            if cooled and not _duplicate_nearby(s.user, hit, at, [Source.CLIP, Source.REALTIME]):
+            if cooled and not _duplicate_nearby(s.user, event_type, label, at, [Source.CLIP, Source.REALTIME]):
                 recorded = BehaviorEvent.objects.create(
-                    user=s.user, session=s, action_label=event_label(probs, hit, profile),
-                    event_type=hit, confidence=round(score, 4), occurred_at=at, source=Source.REALTIME,
-                    model_version=model_version, dedup_key=f"rt:{s.pk}:{hit}:{at.isoformat()}",
+                    user=s.user, session=s, action_label=label,
+                    event_type=event_type, confidence=round(score, 4), occurred_at=at, source=Source.REALTIME,
+                    model_version=model_version, dedup_key=f"rt:{s.pk}:{label}:{at.isoformat()}",
                 )
-                state.setdefault("last", {})[hit] = at.isoformat()
-        state["episode"] = hit
+                state.setdefault("last", {})[label] = at.isoformat()
+        state["episode"] = label
         s.realtime_state = state
         s.save(update_fields=["realtime_state"])
     return recorded
