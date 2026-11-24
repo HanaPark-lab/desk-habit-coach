@@ -1,0 +1,11 @@
+flowchart TD
+ A[영상 입력] --> B[YOLO Pose · 약 6fps · 17 Keypoints] --> C[관절 좌표 정규화] --> D[38 Features × 30 Steps] --> E[Random Forest · 1,140 Features] --> Q{기록 조건 확인}
+ Q --> F[음료 섭취]
+ Q --> G[어깨 스트레칭]
+ Q --> H[잠깐 자리 비움 동작]
+ Q --> I[기타 행동 / 기준 미달 · 제외]
+ F & G & H --> J[행동 기록] --> K[(PostgreSQL)]
+ R["실시간 · 유효 Pose 15/30 이상 · 6슬롯 간격"] -.-> D
+ style E fill:#315d49,color:#fff
+ style J fill:#e2eee4
+ style K fill:#eae3f2

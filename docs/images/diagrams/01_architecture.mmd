@@ -1,0 +1,22 @@
+flowchart TD
+ B[Web Browser] <--> D
+ I[IP Webcam] --> D
+ subgraph Docker Compose
+ D[Django + DRF / 시간 엔진] -->|JPEG| F[FastAPI / YOLO Pose / RF]
+ F -->|관측 및 행동 후보| D
+ D -->|Job ID| R[Redis] --> C[Celery Worker]
+ C -->|MP4| F
+ F -->|예측 JSON| C
+ D --> P[(PostgreSQL)]
+ C --> P
+ D --> M[(Media Volume)] --> C
+ C -->|카메라 중계 요청| D
+ end
+ classDef web fill:#e2eee4,stroke:#8bad96
+ classDef ai fill:#e0eaf5,stroke:#86a8ca
+ classDef queue fill:#fff0d8,stroke:#d9b77e
+ classDef db fill:#eae3f2,stroke:#b6a1ca
+ class D web
+ class F ai
+ class R,C queue
+ class P,M db
