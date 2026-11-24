@@ -2,33 +2,33 @@
 
 모든 숫자는 요청할 때마다 PostgreSQL에서 ORM으로 집계한다 (예시 데이터 없음).
 """
+from collections import Counter
 from datetime import timedelta
 
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db.models import Avg, Count
+from django.db.models.functions import TruncDate
 from django.shortcuts import render
 from django.utils import timezone
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from analyses.habits import EVENT_LABELS
+from analyses.habits import ACTION_NAMES, EVENT_LABELS, behavior_name
 from analyses.models import AnalysisJob, PersonPrediction
 from study.models import BehaviorEvent, StudyInterval
-from study.services.time_engine import day_range, day_seconds, intervals_between, open_session, segments_between
+from study.services.time_engine import current_state, day_range, day_seconds, intervals_between, open_session, seconds_by_state, segments_between
+
+from .usage import staff_usage_context
 
 EventType = BehaviorEvent.EventType
 State = StudyInterval.State
-ACTION_NAMES = {  # data/raw 폴더 ID와 같게
-    "drink_return": "A001 물 마시기", "wave": "A002 손 흔들기", "walk_turn_walk": "A003 걷기", "other": "기타 동작",
-}
 STATUS_ORDER = ["SUCCESS", "FAILURE", "STARTED", "PENDING"]
 # 색각 이상 검사를 통과한 조합 (초록·보라·황색) + 대기는 회색. 상태 이름이 항상 함께 표시됨
 STATUS_COLORS = {"SUCCESS": "#1d7a52", "FAILURE": "#8a4fb8", "STARTED": "#dca23a", "PENDING": "#a7aba3"}
 STATE_COLORS = {"STUDY": "#315d49", "BREAK": "#d7bb85", "AWAY": "#9b8fc4", "AWAY_PENDING": "#c4bde0", "UNKNOWN": "#c9ccc4"}
-ACTION_LABELS = ("drink_return", "wave", "walk_turn_walk")  # 행동 횟수는 실제 모델 라벨별로 (물 마시기·손 흔들기·걷기)
+ACTION_LABELS = ("drink_return", "wave", "walk_turn_walk")  # 행동 횟수는 실제 모델 라벨별로 집계
 
 
 def _day_summary(user, day, now=None):
@@ -77,7 +77,7 @@ def _timeline(user, day, now):
 
 def _feed(user, start, end):
     """AI 자동 기록: 행동 기록 + 공부 세션 상태 변화, 최근 순."""
-    items = [{"kind": e.event_type, "text": f"{e.get_event_type_display()} 감지" + ("" if e.is_valid else " (정정됨)"), "at": e.occurred_at}
+    items = [{"kind": e.event_type, "text": f"{behavior_name(e)} 감지" + ("" if e.is_valid else " (정정됨)"), "at": e.occurred_at}
              for e in BehaviorEvent.objects.filter(user=user, occurred_at__gte=start, occurred_at__lt=end)]
     items += [{"kind": iv.state, "text": FEED_TEXT[iv.state], "at": iv.started_at}
               for iv in StudyInterval.objects.filter(session__user=user, started_at__gte=start, started_at__lt=end)]
@@ -86,28 +86,39 @@ def _feed(user, start, end):
 
 @login_required
 def today(request):
-    now, day = timezone.now(), timezone.localdate()
+    now = timezone.now()
+    day = timezone.localdate(now)
     user = request.user
     summary = _day_summary(user, day, now)
     session = open_session(user)
-    current = session.intervals.filter(ended_at__isnull=True).first() if session else None
     start, end = day_range(day)
     goals = settings.DAILY_GOALS
-    study_minutes = summary["seconds"]["STUDY"] // 60
+    seconds = summary["seconds"]
+    goal_seconds = goals["STUDY_MINUTES"] * 60
+    hours, remainder = divmod(seconds[State.STUDY], 3600)
+    minutes, clock_seconds = divmod(remainder, 60)
     bars, ticks = _timeline(user, day, now)
     valid_today = BehaviorEvent.objects.filter(user=user, is_valid=True, occurred_at__gte=start, occurred_at__lt=end)
     last = {e: valid_today.filter(event_type=e).values_list("occurred_at", flat=True).first() for e in EventType.values}
     monday = day - timedelta(days=day.weekday())  # 이번 주 월~일
-    week = [{"label": WEEKDAYS[i], "today": monday + timedelta(days=i) == day,
-             "hours": round(day_seconds(user, monday + timedelta(days=i), now)["STUDY"] / 3600, 2) if monday + timedelta(days=i) <= day else 0}
-            for i in range(7)]
+    week = []
+    for index, label in enumerate(WEEKDAYS):
+        date = monday + timedelta(days=index)
+        study_seconds = day_seconds(user, date, now)[State.STUDY] if date <= day else 0
+        week.append({"label": label, "today": date == day, "seconds": study_seconds, "duration": _duration(study_seconds)})
     return render(request, "dashboard/today.html", {
         "summary": summary,
         "goals": goals,
         "goal_hours": f"{goals['STUDY_MINUTES'] / 60:g}",
-        "goal_pct": min(100, round(study_minutes / goals["STUDY_MINUTES"] * 100)) if goals["STUDY_MINUTES"] else 0,
+        "goal_pct": min(100, round(seconds[State.STUDY] / goal_seconds * 100)) if goal_seconds > 0 else 0,
+        "goal_seconds": goal_seconds,
+        "study_clock": f"{hours:02d}:{minutes:02d}:{clock_seconds:02d}",
+        "break_duration": _duration(seconds[State.BREAK]),
+        "away_duration": _duration(seconds[State.AWAY]),
+        "pending_duration": _duration(seconds[State.AWAY_PENDING]),
+        "unknown_duration": _duration(seconds[State.UNKNOWN]),
         "session": session,
-        "running": bool(session and current and current.state == State.STUDY),
+        "running": bool(session and session.mode == "MANUAL" and current_state(session, now)[0] == State.STUDY),
         "timeline": bars,
         "ticks": ticks,
         "feed": _feed(user, start, end),
@@ -115,16 +126,87 @@ def today(request):
         "drops": [i < summary["events"]["DRINK"] for i in range(goals["DRINK"])],
         "move_pct": min(100, round(summary["events"]["MOVEMENT"] / goals["MOVEMENT"] * 100)) if goals["MOVEMENT"] else 0,
         "week_data": week,
+        "has_week_study": any(entry["seconds"] for entry in week),
     })
+
+
+def _report_buckets(first_day, size, count, intervals, event_counts, now):
+    auto_study = [iv for iv in intervals if iv.state == State.STUDY and iv.source == StudyInterval.Source.AUTO]
+    for index in range(count):
+        first = first_day + timedelta(days=index * size)
+        last = first + timedelta(days=size - 1)
+        start, _ = day_range(first)
+        _, end = day_range(last)
+        end = min(end, now)
+        seconds = seconds_by_state(intervals, start, end, now)
+        auto = seconds_by_state(auto_study, start, end, now)[State.STUDY]
+        counts = Counter()
+        for offset in range(size):
+            counts.update(event_counts.get(first + timedelta(days=offset), {}))
+        yield {
+            "label": f"{first:%m/%d}" if size == 1 else f"{first:%m/%d}–{last:%m/%d}",
+            "auto": auto,
+            "manual": seconds[State.STUDY] - auto,
+            "break": seconds[State.BREAK],
+            "away": seconds[State.AWAY] + seconds[State.AWAY_PENDING],
+            "unknown": seconds[State.UNKNOWN],
+            "drink": counts[EventType.DRINK],
+            "movement": counts[EventType.MOVEMENT],
+            "wave": counts["wave"],
+            "walk": counts["walk_turn_walk"],
+        }
+
+
+def _duration(seconds):
+    hours, remainder = divmod(seconds, 3600)
+    minutes, remainder = divmod(remainder, 60)
+    if hours:
+        return f"{hours}시간 {minutes}분"
+    return f"{minutes}분" if minutes or not remainder else f"{remainder}초"
 
 
 @login_required
 def reports(request):
-    day = timezone.localdate()
-    days = list(reversed(_week(request.user, day)))
-    start, _ = day_range(day - timedelta(days=6))
-    events = BehaviorEvent.objects.filter(user=request.user, occurred_at__gte=start).select_related("job")
-    return render(request, "dashboard/reports.html", {"days": days, "events": events})
+    now = timezone.now()
+    day = timezone.localdate(now)
+    period = "4w" if request.GET.get("period") == "4w" else "7d"
+    size, count = (7, 4) if period == "4w" else (1, 7)
+    first = day - timedelta(days=size * count - 1)
+    start, _ = day_range(first)
+    _, end = day_range(day)
+    events = BehaviorEvent.objects.filter(user=request.user, occurred_at__gte=start, occurred_at__lt=end)
+    event_counts = {}
+    rows = (events.filter(is_valid=True).order_by().annotate(day=TruncDate("occurred_at"))
+            .values("day", "event_type", "action_label").annotate(total=Count("id")))
+    for row in rows:
+        counts = event_counts.setdefault(row["day"], Counter())
+        counts[row["event_type"]] += row["total"]
+        if row["event_type"] == EventType.MOVEMENT and row["action_label"] in ("wave", "walk_turn_walk"):
+            counts[row["action_label"]] += row["total"]
+
+    intervals = list(intervals_between(request.user, start, end))
+    buckets = list(_report_buckets(first, size, count, intervals, event_counts, now))
+    totals = {key: sum(bucket[key] for bucket in buckets) for key in buckets[0] if key != "label"}
+    time_total = sum(totals[key] for key in ("auto", "manual", "break", "away", "unknown"))
+    drink_goal = settings.DAILY_GOALS["DRINK"] * size
+    charts = [
+        {"id": "time-trend", "title": "시간 추이", "detail": "자리 비움에는 복귀 확인 중인 시간이 포함됩니다.", "has_data": time_total},
+        {"id": "time-share", "title": "시간 사용 비율", "has_data": time_total},
+        {"id": "drink-trend", "title": "음료 섭취", "detail": f"{'주간' if size == 7 else '일간'} 목표 {drink_goal}회", "has_data": totals["drink"]},
+        {"id": "movement-trend", "title": "휴식 활동", "has_data": totals["wave"] + totals["walk"]},
+    ]
+    jobs = request.user.analysis_jobs.filter(created_at__gte=start, created_at__lt=end).prefetch_related("predictions")
+    return render(request, "dashboard/reports.html", {
+        "period": period, "first": first, "today": day, "charts": charts, "jobs": jobs,
+        "events": events.select_related("job"),
+        "summary": {
+            "study": _duration(totals["auto"] + totals["manual"]),
+            "break": _duration(totals["break"]),
+            "drink": totals["drink"],
+            "movement": totals["movement"],
+        },
+        "chart_data": {"buckets": buckets, "totals": totals, "drinkGoal": drink_goal},
+    })
 
 
 @api_view(["GET"])
@@ -150,6 +232,7 @@ def staff_dashboard(request):
     if not request.user.is_staff:
         raise PermissionDenied  # 일반 회원은 403
 
+    usage = staff_usage_context(request.GET.get("visits_page"))
     jobs = AnalysisJob.objects.all()
     status_counts = dict(jobs.values_list("status").annotate(n=Count("id")))
     success, failure = status_counts.get("SUCCESS", 0), status_counts.get("FAILURE", 0)
@@ -167,7 +250,7 @@ def staff_dashboard(request):
         for s in STATUS_ORDER
     ]
     stats = {
-        "users": get_user_model().objects.count(),
+        "users": usage["total_users"],
         "total": sum(status_counts.values()),
         "success": success,
         "failure": failure,
@@ -187,10 +270,12 @@ def staff_dashboard(request):
     ]
     recent = [
         {"job": j, "short_id": str(j.pk)[:8],
-         "action": ACTION_NAMES.get(j.predictions.all()[0].action_label, "-") if j.predictions.all() else "-"}
+         "action": ACTION_NAMES.get(j.predictions.all()[0].action_label, j.predictions.all()[0].action_label)
+         if j.predictions.all() else "-"}
         for j in jobs.select_related("user").prefetch_related("predictions")[:20]
     ]
     return render(request, "dashboard/staff.html", {
         "stats": stats, "actions": actions, "statuses": statuses, "segments": segments, "recent": recent,
-        "chart_data": {"segments": segments},
+        "usage": usage,
+        "chart_data": {"segments": segments, "usageTrend": usage["trend"]},
     })
