@@ -12,7 +12,7 @@ from study.services.time_engine import open_session
 
 from .models import AnalysisJob
 from .serializers import AnalysisJobSerializer
-from .tasks import analyze_job
+from .tasks import analyze_job, fail_stale_jobs
 
 logger = logging.getLogger(__name__)
 
@@ -61,12 +61,19 @@ class AnalysisJobViewSet(viewsets.ModelViewSet):
         job.refresh_from_db()
         return Response(self.get_serializer(job).data, status=202)
 
-    def perform_destroy(self, instance):
-        if instance.video_file:
-            instance.video_file.delete(save=False)
-        instance.delete()  # PersonPrediction·BehaviorEvent는 CASCADE로 함께 삭제
+    def destroy(self, request, *args, **kwargs):
+        job = self.get_object()
+        if job.status in (AnalysisJob.Status.PENDING, AnalysisJob.Status.STARTED):
+            return Response({"detail": "분석 중인 작업은 끝난 뒤에 삭제할 수 있습니다."}, status=409)
+        storage, name = job.video_file.storage, job.video_file.name
+        with transaction.atomic():
+            job.delete()  # PersonPrediction·BehaviorEvent는 CASCADE로 함께 삭제
+            if name:  # DB 삭제가 확정된 뒤에 파일 삭제 (롤백되면 파일은 남음)
+                transaction.on_commit(lambda: storage.delete(name))
+        return Response(status=204)
 
     @action(detail=True, methods=["get"])
     def status(self, request, pk=None):
+        fail_stale_jobs()  # Worker가 죽어 STARTED로 남은 작업 정리
         data = self.get_serializer(self.get_object()).data
         return Response({k: data[k] for k in STATUS_FIELDS})

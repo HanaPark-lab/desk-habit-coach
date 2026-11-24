@@ -1,6 +1,7 @@
 """POST /predict/video: Celery Worker가 보낸 영상 → 사람별 동작.
 POST /predict/frame: 집중 모드 프레임 1장 → 착석 후보·관절·(선택) 휴대폰·실시간 행동 후보 (저장하지 않음).
 DELETE /streams/{key}: 실시간 버퍼 삭제."""
+import hmac
 import os
 import tempfile
 import time
@@ -8,7 +9,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Request, UploadFile
 
 from services.action_inference import predict_people
 from services.pose_pipeline import VideoError, _lock, track_people
@@ -18,7 +19,16 @@ from src.sequence_utils import SEQ_STEPS, TARGET_FPS
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "50"))
 MAX_FRAME_BYTES = 2 * 1024 * 1024
 PHONE_CLASS = 67  # COCO "cell phone"
-router = APIRouter()
+
+
+def internal_auth(x_internal_token: str = Header("")):
+    """Django·Celery만 호출하도록 내부 토큰 확인 (AI_INTERNAL_TOKEN이 비어 있으면 검사 안 함, 로컬 개발용)."""
+    expected = os.getenv("AI_INTERNAL_TOKEN", "")
+    if expected and not hmac.compare_digest(x_internal_token, expected):
+        raise HTTPException(401, {"error_code": "UNAUTHORIZED", "message": "내부 인증 실패"})
+
+
+router = APIRouter(dependencies=[Depends(internal_auth)])  # /health는 main.py에 있어 인증 없이 확인 가능
 
 
 def _norm_box(box, w, h):

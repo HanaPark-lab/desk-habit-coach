@@ -1,9 +1,11 @@
 """Celery 작업: 영상 확보 → FastAPI 추론 → Django ORM으로 결과 저장."""
 import logging
 import time
+from datetime import timedelta
 from pathlib import Path
 
 from celery import shared_task
+from celery.signals import worker_ready
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
@@ -23,7 +25,7 @@ RESULT_FIELDS = ("track_id", "action_label", "confidence", "window_count", "prob
 def analyze_job(self, job_id):
     """PENDING → STARTED → SUCCESS / FAILURE. 같은 작업이 두 번 와도 한 번만 처리한다."""
     claimed = AnalysisJob.objects.filter(pk=job_id, status=Status.PENDING).update(
-        status=Status.STARTED, celery_task_id=self.request.id or ""
+        status=Status.STARTED, celery_task_id=self.request.id or "", started_at=timezone.now()
     )
     if not claimed:
         logger.info("job %s: PENDING이 아니므로 건너뜀", job_id)
@@ -43,18 +45,41 @@ def analyze_job(self, job_id):
         _finish(job, start, status=Status.FAILURE, error_code="INTERNAL_ERROR", error_message="분석 중 알 수 없는 오류가 발생했습니다.")
         return
 
-    with transaction.atomic():  # 사람별 결과·행동 기록·SUCCESS를 함께 저장
-        PersonPrediction.objects.bulk_create(
-            PersonPrediction(job=job, **{k: p[k] for k in RESULT_FIELDS}) for p in result["predictions"]
-        )
-        _finish(
-            job, start, status=Status.SUCCESS,
-            model_profile=result.get("model_profile", ""),
-            model_version=result.get("model_version", ""),
-            error_code=result.get("error_code", ""),
-            error_message=result.get("message", ""),
-        )
-        record_from_job(job, result["predictions"])  # 기준 통과 시 BehaviorEvent 1건 (작업당 최대 1건)
+    try:
+        with transaction.atomic():  # 사람별 결과·행동 기록·SUCCESS를 함께 저장 (하나라도 실패하면 모두 취소)
+            PersonPrediction.objects.bulk_create(
+                PersonPrediction(job=job, **{k: p[k] for k in RESULT_FIELDS}) for p in result["predictions"]
+            )
+            _finish(
+                job, start, status=Status.SUCCESS,
+                model_profile=result.get("model_profile", ""),
+                model_version=result.get("model_version", ""),
+                error_code=result.get("error_code", ""),
+                error_message=result.get("message", ""),
+            )
+            record_from_job(job, result["predictions"])  # 기준 통과 시 BehaviorEvent 1건 (작업당 최대 1건)
+    except Exception:
+        logger.exception("job %s: 결과 저장 실패", job_id)
+        job.refresh_from_db()
+        _finish(job, start, status=Status.FAILURE, error_code="SAVE_ERROR", error_message="분석 결과를 저장하지 못했습니다.")
+
+
+STALE_AFTER = timedelta(seconds=settings.CELERY_TASK_TIME_LIMIT + 60)
+
+
+def fail_stale_jobs():
+    """Worker가 중단돼 STARTED로 남은 작업을 실패로 정산 (Celery 시간 제한 + 1분이 지난 것만)."""
+    return AnalysisJob.objects.filter(status=Status.STARTED, started_at__lt=timezone.now() - STALE_AFTER).update(
+        status=Status.FAILURE, error_code="WORKER_LOST", finished_at=timezone.now(),
+        error_message="분석 작업이 중단되었습니다. 다시 요청해 주세요.",
+    )
+
+
+@worker_ready.connect
+def _recover_on_worker_start(**_):
+    n = fail_stale_jobs()
+    if n:
+        logger.warning("중단된 작업 %d건을 실패로 정산", n)
 
 
 def _capture_into(job):

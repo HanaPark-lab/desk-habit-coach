@@ -5,6 +5,11 @@ import requests
 from django.conf import settings
 
 
+def _auth():
+    """Django·Celery → FastAPI 내부 인증 헤더 (AI_INTERNAL_TOKEN이 설정된 경우)."""
+    return {"X-Internal-Token": settings.AI_INTERNAL_TOKEN} if settings.AI_INTERNAL_TOKEN else {}
+
+
 class AnalysisError(Exception):
     def __init__(self, code, message):
         super().__init__(message)
@@ -17,6 +22,7 @@ def predict_video(path):
             r = requests.post(
                 f"{settings.FASTAPI_URL}/predict/video",
                 files={"file": (Path(path).name, f, "video/mp4")},
+                headers=_auth(),
                 timeout=(5, settings.FASTAPI_TIMEOUT),
             )
     except requests.Timeout:
@@ -27,9 +33,14 @@ def predict_video(path):
     if r.status_code in (413, 422):  # FastAPI가 영상을 거부 (손상·너무 짧음·너무 큼)
         detail = r.json().get("detail", {})
         raise AnalysisError(detail.get("error_code", "INVALID_VIDEO"), detail.get("message", "영상을 분석할 수 없습니다."))
+    if r.status_code == 401:
+        raise AnalysisError("AI_AUTH", "AI 분석 서버 내부 인증에 실패했습니다 (AI_INTERNAL_TOKEN 확인).")
     if r.status_code != 200:
         raise AnalysisError("AI_ERROR", f"AI 분석 서버 오류 ({r.status_code})")
-    body = r.json()
+    try:
+        body = r.json()
+    except ValueError:
+        raise AnalysisError("BAD_AI_RESPONSE", "AI 분석 결과 형식이 올바르지 않습니다.")
     _validate(body)
     return body
 
@@ -37,7 +48,7 @@ def predict_video(path):
 def drop_stream(key):
     """실시간 버퍼 삭제 (세션 종료·휴식·카메라 끔). 실패해도 FastAPI가 TTL로 정리하므로 무시."""
     try:
-        requests.delete(f"{settings.FASTAPI_URL}/streams/{key}", timeout=(1, 2))
+        requests.delete(f"{settings.FASTAPI_URL}/streams/{key}", headers=_auth(), timeout=(1, 2))
     except requests.RequestException:
         pass
 
@@ -52,6 +63,7 @@ def predict_frame(image_bytes, roi=None, stream_key="", seq=0, detect_phone=Fals
             f"{settings.FASTAPI_URL}/predict/frame",
             files={"frame": ("frame.jpg", image_bytes, "image/jpeg")},
             data=data,
+            headers=_auth(),
             timeout=(2, 10),
         )
     except requests.Timeout:

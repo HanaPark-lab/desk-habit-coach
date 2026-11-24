@@ -37,6 +37,7 @@ class AnalysisJob(models.Model):
     error_message = models.TextField(blank=True)
     processing_ms = models.PositiveIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    started_at = models.DateTimeField(null=True, blank=True, help_text="Worker가 처리를 시작한 시각 (중단 작업 정산 기준)")
     finished_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:

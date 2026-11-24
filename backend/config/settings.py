@@ -113,6 +113,7 @@ CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
 FASTAPI_URL = os.environ.get("FASTAPI_URL", "http://localhost:8001").rstrip("/")
 FASTAPI_TIMEOUT = int(os.environ.get("FASTAPI_TIMEOUT", "180"))
+AI_INTERNAL_TOKEN = os.environ.get("AI_INTERNAL_TOKEN", "")  # FastAPI와 같은 값. 비우면 내부 인증 없음(로컬 개발)
 
 # 습관 인정 기준값. NG 영상으로 정한 뒤 .env에서 조정
 DAILY_GOALS = {  # 오늘 대시보드 목표

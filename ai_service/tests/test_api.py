@@ -148,6 +148,14 @@ def test_realtime_window_from_single_person_frames(client):
     client.delete("/streams/rt-test")
 
 
+def test_internal_token(client, monkeypatch):
+    monkeypatch.setenv("AI_INTERNAL_TOKEN", "s3cret")
+    assert client.delete("/streams/x").status_code == 401
+    assert client.delete("/streams/x", headers={"X-Internal-Token": "wrong"}).status_code == 401
+    assert client.delete("/streams/x", headers={"X-Internal-Token": "s3cret"}).status_code == 200
+    assert client.get("/health").status_code == 200  # 상태 확인은 인증 없이
+
+
 def test_delete_stream(client):
     client.app.state.streams.add("k1", 0, None)
     assert client.delete("/streams/k1").json() == {"dropped": True}

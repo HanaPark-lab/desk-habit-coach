@@ -1,6 +1,7 @@
 import shutil
 import tempfile
 import time
+from datetime import timedelta
 from pathlib import Path
 from unittest import mock
 
@@ -9,6 +10,7 @@ import numpy as np
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase, TestCase, override_settings
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from study.models import BehaviorEvent
@@ -124,6 +126,20 @@ class AnalysisApiTests(TestCase):
         self.assertEqual(self.api.delete(f"/api/analyses/{job.pk}/").status_code, 204)
         self.assertFalse(PersonPrediction.objects.exists() or BehaviorEvent.objects.exists())
 
+    def test_running_job_cannot_be_deleted_and_file_removed_after_commit(self):
+        running = self.job_for(self.alice, status="STARTED")
+        self.assertEqual(self.api.delete(f"/api/analyses/{running.pk}/").status_code, 409)
+        self.assertTrue(AnalysisJob.objects.filter(pk=running.pk).exists())
+        done = AnalysisJob.objects.create(user=self.alice, input_type="UPLOAD", status="SUCCESS",
+                                          video_file=SimpleUploadedFile("keep.mp4", b"x"))
+        path = Path(done.video_file.path)
+        with self.captureOnCommitCallbacks(execute=False) as callbacks:
+            self.assertEqual(self.api.delete(f"/api/analyses/{done.pk}/").status_code, 204)
+        self.assertTrue(path.exists())          # 커밋 전에는 파일 그대로
+        for cb in callbacks:
+            cb()
+        self.assertFalse(path.exists())
+
     def test_record_reasons(self):
         failed = self.job_for(self.alice, status="FAILURE", error_message="카메라 끊김")
         self.assertEqual(self.status(failed)["record"]["reason"], "카메라 끊김")
@@ -218,6 +234,30 @@ class AnalyzeTaskTests(TestCase):
         self.run_task()
         self.assertEqual((self.job.status, self.job.error_code), ("SUCCESS", "NO_PERSON"))
         self.assertFalse(BehaviorEvent.objects.exists())
+
+    @mock.patch("analyses.tasks.record_from_job", side_effect=RuntimeError("db down"))
+    @mock.patch("analyses.tasks.predict_video", return_value=RESULT)
+    def test_save_error_marks_failure_and_rolls_back(self, *_):
+        self.run_task()
+        self.assertEqual((self.job.status, self.job.error_code), ("FAILURE", "SAVE_ERROR"))
+        self.assertEqual(self.job.predictions.count(), 0)  # 일부만 저장되지 않음
+
+    def test_stale_started_job_recovered(self):
+        from .tasks import fail_stale_jobs
+        AnalysisJob.objects.filter(pk=self.job.pk).update(status="STARTED", started_at=timezone.now() - timedelta(hours=1))
+        fresh = AnalysisJob.objects.create(user=self.user, input_type="UPLOAD", status="STARTED", started_at=timezone.now())
+        self.assertEqual(fail_stale_jobs(), 1)
+        self.job.refresh_from_db()
+        fresh.refresh_from_db()
+        self.assertEqual((self.job.status, self.job.error_code, fresh.status), ("FAILURE", "WORKER_LOST", "STARTED"))
+
+    @override_settings(AI_INTERNAL_TOKEN="s3cret")
+    @mock.patch("analyses.services.requests.post")
+    def test_internal_token_sent(self, post):
+        post.return_value = mock.Mock(status_code=200, json=lambda: RESULT)
+        from .services import predict_video
+        predict_video(self.job.video_file.path)
+        self.assertEqual(post.call_args.kwargs["headers"], {"X-Internal-Token": "s3cret"})
 
     @mock.patch("analyses.tasks.predict_video", return_value=RESULT)
     def test_runs_only_once(self, predict):
