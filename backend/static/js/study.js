@@ -1,7 +1,7 @@
 // 집중 모드: 세션 버튼 → /api/study/sessions/. 카메라를 켜면 AI 착석 추정 모드(초당 6장 /frames/),
 // 끄면 수동 타이머 모드. 상태·시간은 서버 응답으로 맞추고, 화면은 1초마다 그 사이만 채운다. 프레임은 저장하지 않는다.
 (() => {
-  const { api, errorText, pad } = window.App;
+  const { api, errorText, pad, actionName } = window.App;
   const $ = (id) => document.getElementById(id);
   const FOCUS_GOAL = 50 * 60;   // 50분 집중 → 휴식 권장 (선택)
   const FRAME_MS = 1000 / 6;    // 6fps = 실시간 행동 모델 학습 주기 (한 번에 한 요청, 늦으면 그 프레임은 건너뜀)
@@ -87,12 +87,15 @@
     $("study-error").textContent = "";
     try {
       render(await api(path, { method }));
+      return true;
     } catch (x) {
       $("study-error").textContent = errorText(x);
+      return false;
     }
   }
   const url = (action) => `/api/study/sessions/${session.id}/${action}/`;
-  $("btn-start").addEventListener("click", async () => {
+  $("btn-start").addEventListener("click", async ({ currentTarget: button }) => {
+    button.disabled = true;
     breakAlerted = false;
     $("alert").hidden = true;
     $("study-error").textContent = "";
@@ -100,13 +103,20 @@
       render(await api("/api/study/sessions/", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: stream ? "AI" : "MANUAL" }) }));
     } catch (x) {
-      $("study-error").textContent = errorText(x);
+      if (x.status === 409) location.reload();
+      else $("study-error").textContent = errorText(x);
+    } finally {
+      button.disabled = false;
     }
-    if (session && !stream) toggleCamera();
   });
   $("btn-pause").addEventListener("click", () => call(url("pause")));
   $("btn-resume").addEventListener("click", () => { breakAlerted = false; $("alert").hidden = true; call(url("resume")); });
-  $("btn-end").addEventListener("click", () => confirm("세션을 종료할까요?") && call(url("end")));
+  $("btn-end").addEventListener("click", async ({ currentTarget: button }) => {
+    if (!session || !confirm("세션을 종료할까요?")) return;
+    button.disabled = true;
+    if (await call(url("end"))) location.replace(button.dataset.todayUrl);
+    else button.disabled = false;
+  });
 
   // ---- 카메라 + 프레임 전송 ----
   const video = $("camera");
@@ -208,8 +218,18 @@
       draw(data.persons, data.phones);
       $("live-status").textContent = { present: "", absent: "· 자리에 사람이 보이지 않아요", unclear: "· 확인 어려움 (가림·여러 명·흐림)" }[data.observation] ?? "";
       if (data.recorded_event === "DRINK") drinks++; // 서버에 저장된 경우에만 횟수 증가
-      if (data.recorded_event) showAlert({ DRINK: "물 마시기를 기록했어요", MOVEMENT: "움직임을 기록했어요" }[data.recorded_event] || "행동을 기록했어요",
-        "실시간 AI가 인식했어요. 잘못 기록됐다면 리포트 화면에서 정정할 수 있어요.");
+      if (data.recorded_event) {
+        let label = "drink_return";
+        if (data.recorded_event === "MOVEMENT") {
+          // Match the server's display label within the movement group, including ties.
+          const score = (name) => data.action_candidates.find(({ label }) => label === name)?.probability ?? 0;
+          label = score("walk_turn_walk") > score("wave") ? "walk_turn_walk" : "wave";
+        }
+        const detail = label === "walk_turn_walk"
+          ? "휴식 시간은 카메라의 이탈·복귀 시각으로 따로 판단해요."
+          : "잘못 인식된 행동은 기록 화면에서 정정할 수 있어요.";
+        showAlert(`${actionName(label)} · 1회 기록`, detail);
+      }
       if (data.phone_alert) showAlert("잠깐, 다시 집중해 볼까요?", "휴대폰 사용으로 추정되는 행동이 일정 시간 지속되었어요.");
     } catch (x) {
       $("live-status").textContent = `· ${errorText(x, "분석 서버 연결 실패")}`;

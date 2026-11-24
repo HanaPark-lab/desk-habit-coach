@@ -25,7 +25,7 @@
     <video id="camera" autoplay playsinline muted hidden></video>
     <canvas id="overlay" aria-hidden="true"></canvas>
     <span class="live-badge" id="live-badge" hidden>● LIVE</span>
-    <p class="live-empty" id="live-empty">카메라를 켜면 AI 착석 추정 모드가 됩니다. 초당 6장으로 자리·동작을 확인합니다.<br>영상은 저장하거나 기록하지 않습니다. 카메라를 끄면 수동 타이머로 기록합니다.</p>
+    <p class="live-empty" id="live-empty">카메라 꺼짐</p>
   </div>
   <div class="live-foot">
     <span id="live-title"><span id="mode-label">수동 타이머</span> <small id="live-status"></small></span>
@@ -35,6 +35,7 @@
     <label><input type="checkbox" id="opt-phone"> 휴대폰 감지 (선택 · 시간에서 빼지 않음)</label>
     <label><input type="checkbox" id="opt-break"> 50분 휴식 알림</label>
   </div>
+  <p class="live-note">실시간 영상은 저장하지 않으며, AI 공부 시간은 사람 감지 기반 추정값입니다.</p>
 </section>
 
 <section class="alert-card" id="alert" role="status" hidden>
@@ -55,15 +56,9 @@
   <button type="button" class="btn-primary" id="btn-start">집중 모드 시작</button>
   <button type="button" class="btn-ghost" id="btn-pause" hidden>일시정지</button>
   <button type="button" class="btn-primary" id="btn-resume" hidden>다시 집중</button>
-  <button type="button" class="btn-primary" id="btn-end" hidden>세션 종료</button>
+  <button type="button" class="btn-primary" id="btn-end" data-today-url="{% url 'today' %}" hidden>세션 종료</button>
 </div>
 <p class="error" id="study-error" role="alert"></p>
-<p class="note">AI 착석 추정은 실제 집중도가 아니라 '자리에 앉아 있었는지'를 추정합니다.
-  카메라를 켜면 '확인 중'에서 시작해 한 사람이 3초 이상 분명히 보이면 공부 중, 5초 넘게 비어 있으면 '복귀 확인 중'이 됩니다.
-  15분 안에 돌아오면 비운 시간 전체가 휴식, 넘으면 전체가 장기 자리 비움으로 확정됩니다 (휴식 목적을 판단하는 것은 아닙니다).
-  가림·여러 명·연결 끊김은 '확인 불가'로 따로 셉니다. 일시정지 버튼의 휴식은 길이와 관계없이 휴식입니다. 화면에 한 사람만 보이게 해 주세요.
-  카메라를 끄면 수동 타이머로 30초마다 연결만 확인하며, 90초 넘게 끊긴 시간은 '확인 불가'입니다.
-  휴대폰 감지는 켰을 때만 동작하고 공부 시간에서 빼지 않습니다. <a href="{% url 'analyses_list' %}">음료·움직임 영상으로 기록하기</a></p>
 
 {{ open_session_id|json_script:"open-session" }}
 {% endblock %}
