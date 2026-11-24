@@ -71,6 +71,7 @@
   // ---- 분석 요청 (교과 분석 화면) ----
   const form = $("analyze-form");
   if (form) {
+    const startBtn = $("start-btn");
     const cfg = JSON.parse($("page-config").textContent);
     let mode = "UPLOAD";
     let busy = false;
@@ -145,10 +146,9 @@
         data.append("capture_seconds", String(seconds));
       }
       busy = true;
-      const button = form.querySelector("[type=submit]");
-      const text = button.textContent;
-      button.textContent = "요청 중…";
-      button.setAttribute("aria-busy", "true");
+      const text = startBtn.textContent;
+      startBtn.textContent = "요청 중…";
+      startBtn.setAttribute("aria-busy", "true");
       if (mode === "IPCAM") {
         // 미리보기는 그대로 두고(서버 중계 허브를 함께 씀) 안내만 바꾼다
         if (preview && preview.hidden) startPreview();
@@ -163,8 +163,8 @@
         error.textContent = errorText(x);
       } finally {
         busy = false;
-        button.textContent = text;
-        button.removeAttribute("aria-busy");
+        startBtn.textContent = text;
+        startBtn.removeAttribute("aria-busy");
       }
     });
   }
