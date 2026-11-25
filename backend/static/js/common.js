@@ -28,10 +28,7 @@ window.App = (() => {
   const pad = (n) => String(n).padStart(2, "0");
   const hms = (sec) => `${pad(Math.floor(sec / 3600))}:${pad(Math.floor((sec % 3600) / 60))}:${pad(Math.floor(sec % 60))}`;
   const hm = (sec) => `${Math.floor(sec / 3600)}시간 ${Math.floor((sec % 3600) / 60)}분`;
-  const time = (iso) => {
-    const d = new Date(iso);
-    return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
+  const formatTime = (seconds) => seconds < 60 ? `${seconds}초` : hm(seconds);
 
-  return { api, errorText, el, hms, hm, time, pad, actionName };
+  return { api, errorText, el, hms, formatTime, pad, actionName };
 })();
