@@ -20,7 +20,7 @@ from . import camera_capture
 from .habits import judge
 from .models import AnalysisJob, PersonPrediction
 from .services import AnalysisError
-from .tasks import analyze_job
+from .tasks import analyze_job, run_video_job
 
 MEDIA = tempfile.mkdtemp()
 THRESHOLDS = {"DRINK": 0.5, "MOVEMENT": 0.5}
@@ -102,6 +102,15 @@ class AnalysisApiTests(TestCase):
         self.client.force_login(self.alice)
         self.assertEqual(self.client.get(f"/analyses/{job.pk}/").status_code, 404)
         self.assertTrue(AnalysisJob.objects.filter(pk=job.pk).exists())
+
+    def test_polling_expires_only_the_owned_target(self):
+        stale = {"status": "STARTED", "started_at": timezone.now() - timedelta(hours=1)}
+        job = self.job_for(self.alice, **stale)
+        other_job = self.job_for(self.bob, **stale)
+        self.assertEqual(self.api.get(f"/api/analyses/{other_job.pk}/status/").status_code, 404)
+        self.assertEqual(self.status(job)["error_code"], "WORKER_LOST")
+        other_job.refresh_from_db()
+        self.assertEqual(other_job.status, "STARTED")
 
     def test_patch_changes_only_title_and_memo(self):
         job = self.job_for(self.alice)
@@ -234,6 +243,20 @@ class AnalyzeTaskTests(TestCase):
         event = BehaviorEvent.objects.get()
         self.assertEqual((event.event_type, event.job_id, event.session_id), ("DRINK", self.job.pk, self.session.pk))
 
+    @mock.patch("analyses.tasks.predict_video")
+    def test_upload_runs_without_extensions_and_preserves_concurrent_edit(self, predict):
+        def predict_after_edit(path):
+            AnalysisJob.objects.filter(pk=self.job.pk).update(title="수정한 제목")
+            return RESULT
+
+        predict.side_effect = predict_after_edit
+        self.job.status = "STARTED"
+        self.job.save(update_fields=["status"])
+        run_video_job(self.job)
+        self.job.refresh_from_db()
+        self.assertEqual((self.job.status, self.job.title, self.job.predictions.count()), ("SUCCESS", "수정한 제목", 1))
+        self.assertFalse(BehaviorEvent.objects.exists())
+
     @mock.patch("analyses.tasks.predict_video", return_value={**RESULT, "model_profile": "course", "model_version": "course-6"})
     def test_course_profile_saved_without_event(self, _):
         self.run_task()
@@ -256,7 +279,7 @@ class AnalyzeTaskTests(TestCase):
         self.assertEqual((self.job.status, self.job.error_code), ("SUCCESS", "NO_PERSON"))
         self.assertFalse(BehaviorEvent.objects.exists())
 
-    @mock.patch("analyses.tasks.record_from_job", side_effect=RuntimeError("db down"))
+    @mock.patch("study.services.event_service.record_from_job", side_effect=RuntimeError("db down"))
     @mock.patch("analyses.tasks.predict_video", return_value=RESULT)
     def test_save_error_marks_failure_and_rolls_back(self, *_):
         self.run_task()

@@ -245,8 +245,8 @@ class BreakRuleTests(AiBase):  # STUDY_BREAK_IMPLEMENTATION.md B01~B12 (B10 중�
     def test_b05_b06_actions_do_not_change_time_state(self):
         self.see_range(1, 9, step=1)
         before = self.states()
-        walk = event_service.record_realtime(self.s, cands(walk=0.8, other=0.2), "service", "rf", T0 + timedelta(seconds=9))
-        drink = event_service.record_realtime(self.s, cands(drink=0.8, other=0.2), "service", "rf", T0 + timedelta(seconds=9))
+        walk = event_service.record_realtime_decision(self.s, cands(walk=0.8, other=0.2), "service", "rf", T0 + timedelta(seconds=9)).event
+        drink = event_service.record_realtime_decision(self.s, cands(drink=0.8, other=0.2), "service", "rf", T0 + timedelta(seconds=9)).event
         self.assertEqual((walk.event_type, walk.action_label, drink.event_type), ("MOVEMENT", "walk_turn_walk", "DRINK"))
         self.assertEqual(self.states(), before)
 
@@ -381,7 +381,7 @@ class RealtimeEventTests(TestCase):  # S05·S06: episode당 1건, 중복·NG 보
             self.s = te.start(self.user, te.Mode.AI)
 
     def window(self, seconds, c, profile="service"):
-        return event_service.record_realtime(self.s, c, profile, "rf-test", T0 + timedelta(seconds=seconds))
+        return event_service.record_realtime_decision(self.s, c, profile, "rf-test", T0 + timedelta(seconds=seconds)).event
 
     def test_one_event_per_episode_and_cooldown(self):
         e1 = self.window(10, cands(drink=0.8, other=0.2))
