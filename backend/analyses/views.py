@@ -8,11 +8,9 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from study.services.time_engine import open_session
-
 from .models import AnalysisJob
 from .serializers import AnalysisJobSerializer
-from .tasks import analyze_job, fail_stale_jobs
+from .tasks import STALE_AFTER, analyze_job, fail_stale_jobs
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +25,7 @@ def enqueue(job):
         analyze_job.delay(str(job.pk))
     except Exception:  # Redis가 꺼져 있어도 작업이 영원히 PENDING으로 남지 않게
         logger.exception("job %s: 큐 등록 실패", job.pk)
-        AnalysisJob.objects.filter(pk=job.pk).update(
+        AnalysisJob.objects.filter(pk=job.pk, status=AnalysisJob.Status.PENDING).update(
             status=AnalysisJob.Status.FAILURE, error_code="QUEUE_ERROR",
             error_message="작업 대기열에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.", finished_at=timezone.now(),
         )
@@ -40,12 +38,15 @@ class AnalysisJobViewSet(viewsets.ModelViewSet):
     http_method_names = ["get", "post", "patch", "delete", "head", "options"]  # PUT 금지
 
     def get_queryset(self):
-        return AnalysisJob.objects.filter(user=self.request.user).prefetch_related("predictions", "events")
+        jobs = AnalysisJob.objects.filter(user=self.request.user).prefetch_related("predictions")
+        return jobs if self.action == "status" else jobs.prefetch_related("events")
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         # 진행 중인 공부 세션이 있으면 연결 (결과 행동 기록이 그 세션에 들어감)
+        from study.services.time_engine import open_session
+
         job = serializer.save(user=request.user, session=open_session(request.user))
         if job.video_file and Path(job.video_file.name).suffix.lower() not in settings.ALLOWED_VIDEO_EXTENSIONS:
             # T09: 잘못된 파일도 작업을 먼저 만들고 FAILURE로 기록 (AI 서버로 보내지 않음)
@@ -74,6 +75,9 @@ class AnalysisJobViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["get"])
     def status(self, request, pk=None):
-        fail_stale_jobs()  # Worker가 죽어 STARTED로 남은 작업 정리
-        data = self.get_serializer(self.get_object()).data
+        job = self.get_object()
+        if job.status == AnalysisJob.Status.STARTED and job.started_at and job.started_at < timezone.now() - STALE_AFTER:
+            fail_stale_jobs(job.pk)
+            job.refresh_from_db()
+        data = self.get_serializer(job).data
         return Response({k: data[k] for k in STATUS_FIELDS})
