@@ -1,6 +1,6 @@
 // 오늘 화면의 공부 시간, 집중 모드 진입, 주간 그래프.
 (() => {
-  const { api, errorText, hms, hm } = window.App;
+  const { api, errorText, formatTimes, hm } = window.App;
   const clock = document.getElementById("today-study");
   const goal = document.getElementById("today-goal");
   const goalSeconds = Number(goal.dataset.goalSeconds);
@@ -86,10 +86,6 @@
       },
     });
     document.getElementById("week-values").hidden = true;
-  }
-
-  function formatTime(seconds) {
-    return seconds < 60 ? `${seconds}초` : hm(seconds);
   }
 
   if (window.Chart) drawWeek();
