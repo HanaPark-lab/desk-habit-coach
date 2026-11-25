@@ -60,14 +60,18 @@ class StudySessionViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, view
         if phone is not None and not isinstance(phone, bool):
             return Response({"detail": "phone_detection은 true/false입니다."}, status=status.HTTP_400_BAD_REQUEST)
         session = self.get_object()
-        if mode == StudySession.Mode.MANUAL:
-            drop_stream(session.pk)
-        return self._respond(time_engine.set_mode, session, mode, roi and [float(v) for v in roi], phone)
+        response = self._respond(time_engine.set_mode, session, mode, roi and [float(v) for v in roi], phone)
+        if mode == StudySession.Mode.MANUAL and response.status_code == status.HTTP_200_OK:
+            drop_stream(str(session.pk))
+        return response
 
     @action(detail=True, methods=["post"])
     def pause(self, request, pk=None):
-        drop_stream(pk)  # 실시간 버퍼는 휴식 전후를 잇지 않음
-        return self._respond(time_engine.pause, self.get_object())
+        session = self.get_object()
+        response = self._respond(time_engine.pause, session)
+        if response.status_code == status.HTTP_200_OK:
+            drop_stream(str(session.pk))
+        return response
 
     @action(detail=True, methods=["post"])
     def resume(self, request, pk=None):
@@ -75,8 +79,11 @@ class StudySessionViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, view
 
     @action(detail=True, methods=["post"])
     def end(self, request, pk=None):
-        drop_stream(pk)
-        return self._respond(time_engine.end, self.get_object())
+        session = self.get_object()
+        response = self._respond(time_engine.end, session)
+        if response.status_code == status.HTTP_200_OK:
+            drop_stream(str(session.pk))
+        return response
 
     @action(detail=True, methods=["post"])
     def heartbeat(self, request, pk=None):

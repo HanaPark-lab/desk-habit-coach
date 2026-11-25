@@ -63,10 +63,6 @@ class RealtimeDecision(NamedTuple):
     threshold: float | None = None
 
 
-def record_realtime(session, candidates, profile, model_version, at):
-    return record_realtime_decision(session, candidates, profile, model_version, at).event
-
-
 def record_realtime_decision(session, candidates, profile, model_version, at):
     """Apply existing event policy and report why the window did or did not produce a record."""
     if not candidates:
