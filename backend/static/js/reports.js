@@ -1,6 +1,6 @@
 // 기록 대시보드의 차트와 오인식 정정.
 (() => {
-  const { api, errorText, hm, actionName } = window.App;
+  const { api, errorText, formatTime, actionName } = window.App;
   const { buckets, totals, drinkGoal } = JSON.parse(document.getElementById("report-chart-data").textContent);
   const labels = buckets.map((bucket) => bucket.label);
   const timeSeries = [
@@ -43,10 +43,6 @@
         },
       },
     });
-  }
-
-  function formatTime(seconds) {
-    return seconds < 60 ? `${seconds}초` : hm(seconds);
   }
 
   const series = (key, label, color) => ({ label, data: buckets.map((bucket) => bucket[key]), backgroundColor: color });
