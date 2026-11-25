@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1110" height="1060" viewBox="0 0 1110 1060" role="img" aria-labelledby="diagram-title">
-<title id="diagram-title">02. 데이터베이스 ERD · 주요 필드</title>
+<title id="diagram-title">02. Django 모델 ERD · 주요 필드</title>
 <defs><marker id="arrow" viewBox="0 0 7 6" markerWidth="7" markerHeight="6" refX="7" refY="3" orient="auto-start-reverse"><polygon points="0,0 7,3 0,6" fill="#929a97"/></marker></defs>
 <rect width="1110" height="1060" fill="#fafafa"/>
-<text x="555" y="37" text-anchor="middle" font-family="NanumGothic" font-size="20">02. 데이터베이스 ERD · 주요 필드</text>
+<text x="555" y="37" text-anchor="middle" font-family="NanumGothic" font-size="20">02. Django 모델 ERD · 주요 필드</text>
 <g id="edge1" class="edge">
 <title>USER&#45;&gt;DAILY_USER_ACTIVITY</title>
 <polyline points="458,222 458,271 145,271 145,340" fill="none" stroke="#929a97" stroke-linejoin="miter"/>
@@ -410,4 +410,5 @@
 <text text-anchor="start" x="191" y="-57.6" font-family="NanumGothic" font-size="13.00"> </text>
 <polygon fill="none" stroke="#86a8ca" points="42.5,-45 42.5,-257 215.5,-257 215.5,-45 42.5,-45"/>
 </g>
+<text x="555" y="1030" text-anchor="middle" font-family="NanumGothic, sans-serif" font-size="13">고유 키 (user, day) · (job, track_id) · 세션 삭제 시 연결 작업/이벤트 SET_NULL</text>
 </svg>

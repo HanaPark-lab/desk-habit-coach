@@ -9,18 +9,18 @@ flowchart TD
     USER["<b>USER</b><br/>int id PK<br/>string username<br/>datetime date_joined<br/>datetime last_login"]
     DAILY_USER_ACTIVITY["<b>DAILY_USER_ACTIVITY</b><br/>bigint id PK<br/>int user_id FK<br/>date day<br/>boolean logged_in<br/>datetime last_seen_at"]
     STUDY_SESSION["<b>STUDY_SESSION</b><br/>uuid id PK<br/>int user_id FK<br/>string status<br/>string mode<br/>datetime started_at<br/>datetime ended_at"]
-    ANALYSIS_JOB["<b>ANALYSIS_JOB</b><br/>uuid id PK<br/>int user_id FK<br/>uuid session_id FK<br/>string input_type<br/>string status<br/>string video_file<br/>string model_version<br/>string error_code<br/>datetime created_at"]
+    ANALYSIS_JOB["<b>ANALYSIS_JOB</b><br/>uuid id PK<br/>int user_id FK<br/>uuid session_id FK nullable<br/>string input_type<br/>string status<br/>string video_file<br/>string model_version<br/>string error_code<br/>datetime created_at"]
     STUDY_INTERVAL["<b>STUDY_INTERVAL</b><br/>bigint id PK<br/>uuid session_id FK<br/>string state<br/>string source<br/>datetime started_at<br/>datetime ended_at"]
-    PERSON_PREDICTION["<b>PERSON_PREDICTION</b><br/>bigint id PK<br/>uuid job_id FK<br/>int track_id<br/>string action_label<br/>float confidence<br/>json probabilities"]
-    BEHAVIOR_EVENT["<b>BEHAVIOR_EVENT</b><br/>uuid id PK<br/>int user_id FK<br/>uuid session_id FK<br/>uuid job_id FK<br/>string event_type<br/>string action_label<br/>float confidence<br/>datetime occurred_at<br/>boolean is_valid"]
-    USER -->|"relates · 1 : 0..N"| DAILY_USER_ACTIVITY
+    PERSON_PREDICTION["<b>PERSON_PREDICTION</b><br/>bigint id PK<br/>uuid job_id FK<br/>int track_id (job과 고유)<br/>string action_label<br/>float confidence<br/>json probabilities"]
+    BEHAVIOR_EVENT["<b>BEHAVIOR_EVENT</b><br/>uuid id PK<br/>int user_id FK<br/>uuid session_id FK nullable<br/>uuid job_id FK nullable<br/>string event_type<br/>string action_label<br/>float confidence<br/>datetime occurred_at<br/>boolean is_valid"]
+    USER -->|"CASCADE · 사용자와 날짜 고유"| DAILY_USER_ACTIVITY
     USER -->|"relates · 1 : 0..N"| STUDY_SESSION
     USER -->|"relates · 1 : 0..N"| ANALYSIS_JOB
     USER -->|"relates · 1 : 0..N"| BEHAVIOR_EVENT
     STUDY_SESSION -->|"relates · 1 : 0..N"| STUDY_INTERVAL
-    STUDY_SESSION -->|"relates · 0..1 : 0..N"| ANALYSIS_JOB
-    STUDY_SESSION -->|"relates · 0..1 : 0..N"| BEHAVIOR_EVENT
+    STUDY_SESSION -->|"SET_NULL · 0..1 : 0..N"| ANALYSIS_JOB
+    STUDY_SESSION -->|"SET_NULL · 0..1 : 0..N"| BEHAVIOR_EVENT
     ANALYSIS_JOB -->|"relates · 1 : 0..N"| PERSON_PREDICTION
-    ANALYSIS_JOB -->|"relates · 0..1 : 0..N"| BEHAVIOR_EVENT
+    ANALYSIS_JOB -->|"CASCADE · 0..1 : 0..N"| BEHAVIOR_EVENT
     classDef entity fill:#e0eaf5,stroke:#86a8ca,color:#23332c
     class USER,DAILY_USER_ACTIVITY,STUDY_SESSION,ANALYSIS_JOB,STUDY_INTERVAL,PERSON_PREDICTION,BEHAVIOR_EVENT entity
