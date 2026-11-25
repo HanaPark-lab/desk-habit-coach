@@ -6,7 +6,7 @@
 | 프로필 | 클래스 | 용도 | 상태 |
 |---|---|---|---|
 | service | drink_return, wave, walk_turn_walk, other | 습관 자동 기록 | 자체 촬영 학습 (`rf-2026-11-24-other`) |
-| course | 교과 제공 6종 | 기존 설정과 데이터 읽기 호환 | 제출 및 기본 실행 범위에서 제외 |
+| course | 교과 제공 6종 | 프로필 및 과거 결과 호환 | 6종 모델 산출물 미제공, 현재 실행 미검증 |
 
 원 교과 요구의 제공 모델 6종은 사용자 확인에 따라 자체 학습 4종으로 대체했다. `MODEL_PROFILE=service`가 기본값이다. 모든 분석 결과에 `model_profile`·`model_version`을 저장한다.
 
@@ -45,3 +45,7 @@ flowchart TD
 ## 개발 로그
 
 `.env`에서 `REALTIME_DEBUG=1`을 설정하고 Django 컨테이너를 재생성한 뒤 `docker compose logs -f django`를 확인한다. `LOG_LEVEL`은 `INFO` 이상 상세하게 설정한다. 로그에는 모델 버전, 4종 확률과 최고 라벨, 기존 기준값 및 행동 그룹 판정 점수, 유효 Pose 수와 버퍼 상태, 관측 및 공부 상태, 기록·거부 이유가 나온다. 유효한 Window가 없으면 확률은 비어 있다. 프레임 이미지나 관절 좌표는 출력하지 않는다.
+
+## 최적화 후 공통 추론 호출
+
+`routers/predictions.py`의 `predict_video`는 `pose_pipeline.track_people`과 `action_inference.predict_people`을 호출한다. `predict_frame`은 `pose_pipeline.predict_pose`와 `StreamBuffers.add`를 거쳐 `action_inference.predict_candidates`를 호출한다. 두 경로는 `predict_probabilities`의 클래스 순서 RF 확률 및 평균을 공유한다. 실시간 평균은 단일 Window이며, 기존 정렬과 4자리 반올림을 유지한다. Pose Lock은 영상 전체의 tracker 일관성을 보호하며 휴대폰 detector의 별도 Lock은 공유 Pose를 점유하지 않는다.
