@@ -1,4 +1,4 @@
-# 시스템 아키텍처 (구현 기준, 2026-11-24)
+# 시스템 아키텍처 (구현 기준, 2026-11-25)
 
 ## 전체 시스템 — Docker Compose 5개 서비스
 ```mermaid
@@ -90,7 +90,7 @@ sequenceDiagram
  B->>D: GET /api/analyses/{id}/status/ (2초 polling)
  D-->>B: 상태·결과·기록 여부
 ```
-Worker가 죽어 STARTED로 남은 작업은 Celery 시간 제한 + 1분이 지나면 Worker 시작·상태 조회 시 `WORKER_LOST` FAILURE로 정산한다.
+Worker가 죽어 STARTED로 남은 작업은 Celery 시간 제한 + 1분이 지나면 Worker 시작 시 전체를, 상태 조회 시에는 해당 작업을 `WORKER_LOST` FAILURE로 정산한다.
 
 ## 실시간 세션 시퀀스 (AI 모드)
 ```mermaid
@@ -109,8 +109,8 @@ sequenceDiagram
  D-->>B: 상태·시간·기록된 행동
  end
  B->>D: 휴식 / 종료 / 카메라 끔
- D->>F: DELETE /streams/{key}
- D->>P: 구간 확정 (pending은 AWAY)
+ D->>P: 소유 세션 상태 변경 및 구간 확정 (pending은 AWAY)
+ D->>F: 상태 변경 성공 후 DELETE /streams/{key}
 ```
 브라우저는 초당 약 6회 전송을 시도하고 진행 중인 요청이 있으면 건너뛴다. 처리율은 장치와 연결에 따라 달라진다. 실제 측정은 [최종 테스트 보고서](FINAL_TEST_REPORT.md)를 참조한다. 원본 프레임은 저장하지 않는다. 페이지를 떠나면 카메라 track을 정지한다.
 
@@ -150,3 +150,9 @@ flowchart TB
  end
 ```
 시작 순서: postgres·redis·fastapi healthy → django(migrate·collectstatic·gunicorn) healthy → celery. 모델 로딩 실패 시 fastapi가 unhealthy가 되어 django가 시작하지 않는다. 로컬 개발은 `compose.dev.yaml`로 DB·Redis만 127.0.0.1에 공개한다.
+
+## 최적화 후 코드 경계
+
+- `backend/analyses/tasks.py`의 `analyze_job`은 Redis 작업을 받아 PENDING을 선점하고 `run_video_job`을 호출한다. `run_video_job`은 업로드 파일·FastAPI·ORM으로 실행 가능하며, 통합 배포에서는 IP Webcam 입력과 습관 기록 콜백을 전달한다. 정상 통합 모드의 예측·작업 완료·행동 기록은 한 트랜잭션에서 공개된다.
+- 결과 저장과 실패 갱신은 STARTED와 선점 task ID를 확인하고 작업 결과 필드만 바꾼다. 상태 조회는 요청 대상만 만료 처리하고 시작 훅에서 전체 만료 작업을 처리한다.
+- 영상·실시간은 `action_inference.py` 함수의 RF 확률 계산을 공유한다. Pose/Tracking은 같은 락을 사용하며 선택적인 휴대폰 검출 모델은 별도 락을 사용한다. 프로세스 로컬 실시간 버퍼 때문에 FastAPI는 기존 단일 프로세스를 사용한다.
