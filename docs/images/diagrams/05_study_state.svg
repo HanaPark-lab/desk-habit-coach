@@ -30,12 +30,12 @@
 <g id="edge6" class="edge">
 <title>U&#45;&gt;A</title>
 <polyline points="380,253 131,253 131,495" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-<text text-anchor="middle" x="240" y="245" font-family="NanumGothic" font-size="11.00">유효 부재 5초</text>
+<text text-anchor="middle" x="188" y="318" font-family="NanumGothic" font-size="11.00">유효 부재 5초</text>
 </g>
 <g id="edge12" class="edge">
 <title>A&#45;&gt;U</title>
-<polyline points="76,508 39,508 39,274 380,274" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-<text text-anchor="middle" x="240" y="296" font-family="NanumGothic" font-size="11.00">연결 끊김 · 이탈 AWAY 확정</text>
+<polyline points="76,508 39,508 39,247 380,247" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<text text-anchor="middle" x="219" y="236" font-family="NanumGothic" font-size="11.00">연결 끊김 · 이탈 AWAY 확정</text>
 </g>
 <g id="edge5" class="edge">
 <title>T&#45;&gt;A</title>
@@ -45,7 +45,7 @@
 <g id="edge7" class="edge">
 <title>A&#45;&gt;B</title>
 <polyline points="136,531 136,630" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-<text text-anchor="middle" x="208" y="584" font-family="NanumGothic" font-size="11.00">15분 이내 복귀 확인</text>
+<text text-anchor="middle" x="208" y="584" font-family="NanumGothic" font-size="11.00">첫 복귀 ≤ 15분, 안정 3초</text>
 </g>
 <g id="edge8" class="edge">
 <title>A&#45;&gt;W</title>
@@ -54,8 +54,8 @@
 </g>
 <g id="edge9" class="edge">
 <title>B&#45;&gt;T</title>
-<polyline points="192,649 321,649 321,396 385,396" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-<text text-anchor="middle" x="260" y="669" font-family="NanumGothic" font-size="11.00">복귀 시각부터</text>
+<polyline points="82,649 58,649 58,396 385,396" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<text text-anchor="middle" x="274" y="389" font-family="NanumGothic" font-size="11.00">복귀 시각부터</text>
 </g>
 <g id="edge10" class="edge">
 <title>W&#45;&gt;T</title>
@@ -155,6 +155,6 @@
 <g transform="translate(5 272.8)" font-family="NanumGothic, sans-serif" font-size="13" fill="#254938">
 <rect x="12" y="538.2" width="1126" height="50" rx="8" fill="#e2eee4"/>
 <text x="24" y="557.2">자동 휴식: 복귀를 3초간 확인한 뒤, 첫 복귀 관측이 이탈 시작 후 15분 이내면 전체 이탈을 휴식으로 확정.</text>
-<text x="24" y="577.2">RF 행동 기록과 공부·휴식 시간 판단은 별도 경로.</text>
+<text x="24" y="577.2">시간 상태는 time_engine.observe()가 반영하며 RF 행동 기록은 별도 경로.</text>
 </g>
 </svg>
