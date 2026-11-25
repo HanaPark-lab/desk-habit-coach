@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static action_labels %}
+{% load static %}
 {% block title %}Vision AI 동작 분석 · desk habit.{% endblock %}
 {% block content %}
 <h1 class="course-title">Vision AI 동작 분석</h1>
@@ -17,7 +17,7 @@
       <div id="upload-fields" role="tabpanel">
         <label class="dropzone" id="dropzone">
           <input type="file" name="video_file" accept="video/*" aria-describedby="dz-text">
-          <span class="dz-text" id="dz-text">영상 파일을 여기에 끌어다 놓거나 클릭해서 선택하세요 (mp4, 5초 이상)</span>
+          <span id="dz-text">영상 파일을 여기에 끌어다 놓거나 클릭해서 선택하세요 (mp4, 5초 이상)</span>
         </label>
       </div>
       <div id="ipcam-fields" role="tabpanel" hidden>

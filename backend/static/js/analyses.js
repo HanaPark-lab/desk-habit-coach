@@ -10,6 +10,7 @@
   const inputName = (t) => (t === "IPCAM" ? "IP Webcam" : "영상 업로드");
   const inline = !!$("result") && !$("job-detail"); // 교과 분석 화면
   let pollTimer = null;
+  let pollGeneration = 0;
   let afterDone = null; // 분석 완료·실패 후 할 일 (IP Webcam 미리보기 다시 켜기)
 
   function renderJob(job) {
@@ -50,21 +51,23 @@
   function track(id) {
     clearTimeout(pollTimer);
     if (inline) history.replaceState(null, "", `?job=${encodeURIComponent(id)}`);
-    poll(id);
+    poll(id, ++pollGeneration);
   }
 
-  async function poll(id) {
+  async function poll(id, generation) {
     try {
       const job = await api(`/api/analyses/${encodeURIComponent(id)}/status/`);
+      if (generation !== pollGeneration) return;
       renderJob(job);
       if (job.status === "PENDING" || job.status === "STARTED") {
-        pollTimer = setTimeout(() => poll(id), POLL_MS);
+        pollTimer = setTimeout(() => poll(id, generation), POLL_MS);
         return;
       }
       if (afterDone) afterDone();
     } catch (x) {
+      if (generation !== pollGeneration) return;
       $("status-text").textContent = x.status === 404 ? "작업을 찾을 수 없습니다." : "상태를 불러오지 못했습니다. 다시 시도하는 중…";
-      if (x.status !== 404) pollTimer = setTimeout(() => poll(id), POLL_MS * 2);
+      if (x.status !== 404) pollTimer = setTimeout(() => poll(id, generation), POLL_MS * 2);
     }
   }
 
@@ -177,7 +180,7 @@
   const detail = $("job-detail");
   if (!detail) return;
   const id = detail.dataset.jobId;
-  poll(id);
+  track(id);
   $("edit-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const f = e.target.elements;
