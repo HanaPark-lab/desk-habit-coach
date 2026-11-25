@@ -1,132 +1,48 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="770" height="893" viewBox="0 0 770 893" role="img" aria-labelledby="diagram-title">
-<title id="diagram-title">04. AI 모델 추론 파이프라인</title>
-<defs><marker id="arrow" viewBox="0 0 7 6" markerWidth="7" markerHeight="6" refX="7" refY="3" orient="auto-start-reverse"><polygon points="0,0 7,3 0,6" fill="#929a97"/></marker></defs>
-<rect width="770" height="893" fill="#fafafa"/>
-<text x="385" y="37" text-anchor="middle" font-family="NanumGothic" font-size="20">04. AI 모델 추론 파이프라인</text>
-<g id="edge1" class="edge">
-<title>A&#45;&gt;B</title>
-<polyline points="385,98 385,132" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-</g>
-<g id="edge2" class="edge">
-<title>B&#45;&gt;C</title>
-<polyline points="385,178 385,212" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-</g>
-<g id="edge3" class="edge">
-<title>C&#45;&gt;D</title>
-<polyline points="385,258 385,292" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-</g>
-<g id="edge4" class="edge">
-<title>D&#45;&gt;E</title>
-<polyline points="385,338 385,372" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-</g>
-<g id="edge5" class="edge">
-<title>E&#45;&gt;Q</title>
-<polyline points="385,418 385,452" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-</g>
-<g id="edge6" class="edge">
-<title>Q&#45;&gt;F</title>
-<polyline points="319,488 319,509 108.5,509 108.5,557" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-</g>
-<g id="edge7" class="edge">
-<title>Q&#45;&gt;G</title>
-<polyline points="350,488 350,528 279,528 279,557" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-</g>
-<g id="edge8" class="edge">
-<title>Q&#45;&gt;H</title>
-<polyline points="420,488 420,528 473,528 473,557" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-</g>
-<g id="edge9" class="edge">
-<title>Q&#45;&gt;I</title>
-<polyline points="452,488 452,509 660.5,509 660.5,557" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-</g>
-<g id="edge10" class="edge">
-<title>F&#45;&gt;J</title>
-<polyline points="108.5,603 108.5,636 342,636 342,680" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-</g>
-<g id="edge11" class="edge">
-<title>G&#45;&gt;J</title>
-<polyline points="279,603 279,656 367,656 367,680" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-</g>
-<g id="edge12" class="edge">
-<title>H&#45;&gt;J</title>
-<polyline points="473,603 473,636 393,636 393,680" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-</g>
-<g id="edge13" class="edge">
-<title>J&#45;&gt;K</title>
-<polyline points="367,716 367,759" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-</g>
-<g id="node1" class="node" transform="translate(124.5 764)">
-<title>A</title>
-<path fill="#e0eaf5" stroke="#86a8ca" d="M290.5,-702C290.5,-702 230.5,-702 230.5,-702 224.5,-702 218.5,-696 218.5,-690 218.5,-690 218.5,-678 218.5,-678 218.5,-672 224.5,-666 230.5,-666 230.5,-666 290.5,-666 290.5,-666 296.5,-666 302.5,-672 302.5,-678 302.5,-678 302.5,-690 302.5,-690 302.5,-696 296.5,-702 290.5,-702"/>
-<text text-anchor="middle" x="260.5" y="-680.6" font-family="NanumGothic" font-size="13.00">영상 입력</text>
-</g>
-<g id="node2" class="node" transform="translate(124.5 758)">
-<title>B</title>
-<path fill="#e0eaf5" stroke="#86a8ca" d="M323,-626C323,-626 198,-626 198,-626 192,-626 186,-620 186,-614 186,-614 186,-592 186,-592 186,-586 192,-580 198,-580 198,-580 323,-580 323,-580 329,-580 335,-586 335,-592 335,-592 335,-614 335,-614 335,-620 329,-626 323,-626"/>
-<text text-anchor="middle" x="260.5" y="-606.6" font-family="NanumGothic" font-size="13.00">YOLO Pose</text>
-<text text-anchor="middle" x="260.5" y="-592.6" font-family="NanumGothic" font-size="13.00">약 6fps · 17 Keypoints</text>
-</g>
-<g id="node3" class="node" transform="translate(124.5 752)">
-<title>C</title>
-<path fill="#e0eaf5" stroke="#86a8ca" d="M310.5,-540C310.5,-540 210.5,-540 210.5,-540 204.5,-540 198.5,-534 198.5,-528 198.5,-528 198.5,-506 198.5,-506 198.5,-500 204.5,-494 210.5,-494 210.5,-494 310.5,-494 310.5,-494 316.5,-494 322.5,-500 322.5,-506 322.5,-506 322.5,-528 322.5,-528 322.5,-534 316.5,-540 310.5,-540"/>
-<text text-anchor="middle" x="260.5" y="-520.6" font-family="NanumGothic" font-size="13.00">관절 좌표 정규화</text>
-<text text-anchor="middle" x="260.5" y="-506.6" font-family="NanumGothic" font-size="13.00">어깨 중심 · 너비</text>
-</g>
-<g id="node4" class="node" transform="translate(124.5 746)">
-<title>D</title>
-<path fill="#e0eaf5" stroke="#86a8ca" d="M333,-454C333,-454 188,-454 188,-454 182,-454 176,-448 176,-442 176,-442 176,-420 176,-420 176,-414 182,-408 188,-408 188,-408 333,-408 333,-408 339,-408 345,-414 345,-420 345,-420 345,-442 345,-442 345,-448 339,-454 333,-454"/>
-<text text-anchor="middle" x="260.5" y="-434.6" font-family="NanumGothic" font-size="13.00">Feature Extraction</text>
-<text text-anchor="middle" x="260.5" y="-420.6" font-family="NanumGothic" font-size="13.00">38 Features × 30 Steps</text>
-</g>
-<g id="node5" class="node" transform="translate(124.5 740)">
-<title>E</title>
-<path fill="#315d49" stroke="#86a8ca" d="M310.5,-368C310.5,-368 210.5,-368 210.5,-368 204.5,-368 198.5,-362 198.5,-356 198.5,-356 198.5,-334 198.5,-334 198.5,-328 204.5,-322 210.5,-322 210.5,-322 310.5,-322 310.5,-322 316.5,-322 322.5,-328 322.5,-334 322.5,-334 322.5,-356 322.5,-356 322.5,-362 316.5,-368 310.5,-368"/>
-<text text-anchor="middle" x="260.5" y="-348.6" font-family="NanumGothic" font-size="13.00" fill="white">Random Forest</text>
-<text text-anchor="middle" x="260.5" y="-334.6" font-family="NanumGothic" font-size="13.00" fill="white">1,140 Features</text>
-</g>
-<g id="node6" class="node" transform="translate(124.5 734)">
-<title>Q</title>
-<path fill="#fff0d8" stroke="#86a8ca" d="M336,-282C336,-282 185,-282 185,-282 179,-282 173,-276 173,-270 173,-270 173,-258 173,-258 173,-252 179,-246 185,-246 185,-246 336,-246 336,-246 342,-246 348,-252 348,-258 348,-258 348,-270 348,-270 348,-276 342,-282 336,-282"/>
-<text text-anchor="middle" x="260.5" y="-260.6" font-family="NanumGothic" font-size="13.00">행동 분류 · 기록 조건 확인</text>
-</g>
-<g id="node7" class="node" transform="translate(55 763)">
-<title>F</title>
-<path fill="#e2eee4" stroke="#86a8ca" d="M95,-206C95,-206 12,-206 12,-206 6,-206 0,-200 0,-194 0,-194 0,-172 0,-172 0,-166 6,-160 12,-160 12,-160 95,-160 95,-160 101,-160 107,-166 107,-172 107,-172 107,-194 107,-194 107,-200 101,-206 95,-206"/>
-<text text-anchor="middle" x="53.5" y="-186.6" font-family="NanumGothic" font-size="13.00">음료 섭취</text>
-<text text-anchor="middle" x="53.5" y="-172.6" font-family="NanumGothic" font-size="13.00">drink_return</text>
-</g>
-<g id="node8" class="node" transform="translate(92.5 763)">
-<title>G</title>
-<path fill="#e2eee4" stroke="#86a8ca" d="M228.5,-206C228.5,-206 144.5,-206 144.5,-206 138.5,-206 132.5,-200 132.5,-194 132.5,-194 132.5,-172 132.5,-172 132.5,-166 138.5,-160 144.5,-160 144.5,-160 228.5,-160 228.5,-160 234.5,-160 240.5,-166 240.5,-172 240.5,-172 240.5,-194 240.5,-194 240.5,-200 234.5,-206 228.5,-206"/>
-<text text-anchor="middle" x="186.5" y="-186.6" font-family="NanumGothic" font-size="13.00">어깨 스트레칭</text>
-<text text-anchor="middle" x="186.5" y="-172.6" font-family="NanumGothic" font-size="13.00">wave</text>
-</g>
-<g id="node9" class="node" transform="translate(137.5 763)">
-<title>H</title>
-<path fill="#e2eee4" stroke="#86a8ca" d="M393.5,-206C393.5,-206 277.5,-206 277.5,-206 271.5,-206 265.5,-200 265.5,-194 265.5,-194 265.5,-172 265.5,-172 265.5,-166 271.5,-160 277.5,-160 277.5,-160 393.5,-160 393.5,-160 399.5,-160 405.5,-166 405.5,-172 405.5,-172 405.5,-194 405.5,-194 405.5,-200 399.5,-206 393.5,-206"/>
-<text text-anchor="middle" x="335.5" y="-186.6" font-family="NanumGothic" font-size="13.00">잠깐 자리 비움 동작</text>
-<text text-anchor="middle" x="335.5" y="-172.6" font-family="NanumGothic" font-size="13.00">walk_turn_walk</text>
-</g>
-<g id="node10" class="node" transform="translate(155 763)">
-<title>I</title>
-<path fill="#eeeeee" stroke="#86a8ca" d="M568,-206C568,-206 443,-206 443,-206 437,-206 431,-200 431,-194 431,-194 431,-172 431,-172 431,-166 437,-160 443,-160 443,-160 568,-160 568,-160 574,-160 580,-166 580,-172 580,-172 580,-194 580,-194 580,-200 574,-206 568,-206"/>
-<text text-anchor="middle" x="505.5" y="-186.6" font-family="NanumGothic" font-size="13.00">기타 행동 / 기준 미달</text>
-<text text-anchor="middle" x="505.5" y="-172.6" font-family="NanumGothic" font-size="13.00">기록 제외</text>
-</g>
-<g id="node11" class="node" transform="translate(180.5 800)">
-<title>J</title>
-<path fill="#e2eee4" stroke="#86a8ca" d="M216.5,-120C216.5,-120 156.5,-120 156.5,-120 150.5,-120 144.5,-114 144.5,-108 144.5,-108 144.5,-96 144.5,-96 144.5,-90 150.5,-84 156.5,-84 156.5,-84 216.5,-84 216.5,-84 222.5,-84 228.5,-90 228.5,-96 228.5,-96 228.5,-108 228.5,-108 228.5,-114 222.5,-120 216.5,-120"/>
-<text text-anchor="middle" x="186.5" y="-98.6" font-family="NanumGothic" font-size="13.00">행동 기록</text>
-</g>
-<g id="node12" class="node" transform="translate(180.5 803)">
-<title>K</title>
-<path fill="#eae3f2" stroke="#86a8ca" d="M236.5,-40C236.5,-42.21 214.09,-44 186.5,-44 158.91,-44 136.5,-42.21 136.5,-40 136.5,-40 136.5,-4 136.5,-4 136.5,-1.79 158.91,0 186.5,0 214.09,0 236.5,-1.79 236.5,-4 236.5,-4 236.5,-40 236.5,-40"/>
-<path fill="none" stroke="#86a8ca" d="M236.5,-40C236.5,-37.79 214.09,-36 186.5,-36 158.91,-36 136.5,-37.79 136.5,-40"/>
-<text text-anchor="middle" x="186.5" y="-18.6" font-family="NanumGothic" font-size="13.00">PostgreSQL</text>
-</g>
-<g transform="translate(5 61.8)" font-family="NanumGothic, sans-serif" font-size="13" fill="#254938">
-<rect x="12" y="775.2" width="736" height="50" rx="8" fill="#e2eee4"/>
-<text x="24" y="794.2">실시간: 30슬롯 중 유효 Pose 15개 이상, 6슬롯마다 평가</text>
-<text x="24" y="814.2">결측은 학습 방식으로 채움. ROI 다중 인물 또는 2슬롯 초과 공백 시 초기화.</text>
-</g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="750" viewBox="0 0 960 750" role="img" aria-labelledby="title">
+<title id="title">04. AI 모델 추론 파이프라인</title>
+<defs><marker id="arrow" viewBox="0 0 7 6" markerWidth="7" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0,0 7,3 0,6" fill="#929a97"/></marker></defs>
+<rect width="960" height="750" fill="#fafafa"/>
+<g font-family="NanumGothic, sans-serif" fill="#23332c" text-anchor="middle">
+<text x="480" y="36" font-size="21">04. AI 모델 추론 파이프라인</text>
+<polyline points="250,123 250,145 395,145 395,170" fill="none" stroke="#929a97" marker-end="url(#arrow)"/>
+<polyline points="710,123 710,145 565,145 565,170" fill="none" stroke="#929a97" marker-end="url(#arrow)"/>
+<polyline points="480,224 480,255" fill="none" stroke="#929a97" marker-end="url(#arrow)"/>
+<polyline points="395,309 395,332 250,332 250,355" fill="none" stroke="#929a97" marker-end="url(#arrow)"/>
+<polyline points="565,309 565,332 710,332 710,355" fill="none" stroke="#929a97" marker-end="url(#arrow)"/>
+<polyline points="250,408 250,432 395,432 395,455" fill="none" stroke="#929a97" marker-end="url(#arrow)"/>
+<polyline points="710,408 710,432 565,432 565,455" fill="none" stroke="#929a97" marker-end="url(#arrow)"/>
+<polyline points="395,509 395,532 250,532 250,555" fill="none" stroke="#929a97" marker-end="url(#arrow)"/>
+<polyline points="565,509 565,532 710,532 710,555" fill="none" stroke="#929a97" marker-end="url(#arrow)"/>
+<polyline points="250,608 250,632 395,632 395,655" fill="none" stroke="#929a97" marker-end="url(#arrow)"/>
+<polyline points="710,608 710,632 565,632 565,655" fill="none" stroke="#929a97" marker-end="url(#arrow)"/>
+<rect x="50" y="70" width="400" height="53" rx="5" fill="#e0eaf5" stroke="#a6b1ac"/>
+<text x="250" y="92" font-size="16">MP4 · POST /predict/video</text>
+<text x="250" y="111" font-size="13">track_people · YOLO Pose Tracking</text>
+<rect x="510" y="70" width="400" height="53" rx="5" fill="#e0eaf5" stroke="#a6b1ac"/>
+<text x="710" y="92" font-size="16">JPEG · POST /predict/frame</text>
+<text x="710" y="111" font-size="13">predict_pose · ROI 단일 대상</text>
+<rect x="265" y="170" width="430" height="54" rx="5" fill="#e2eee4" stroke="#a6b1ac"/>
+<text x="480" y="192" font-size="16">step_features · COCO 17 Keypoints</text>
+<text x="480" y="211" font-size="13">어깨 정규화 좌표 34 + 각도 4</text>
+<rect x="265" y="255" width="430" height="54" rx="5" fill="#e2eee4" stroke="#a6b1ac"/>
+<text x="480" y="277" font-size="16">windows · 30 Step × 38 Feature</text>
+<text x="480" y="296" font-size="13">목표 6fps · stride 6 · 결측 보간</text>
+<rect x="50" y="355" width="400" height="53" rx="5" fill="#e0eaf5" stroke="#a6b1ac"/>
+<text x="250" y="377" font-size="16">클립 · Track별 active_windows</text>
+<text x="250" y="396" font-size="13">상대 움직임 기준으로 Window 선택</text>
+<rect x="510" y="355" width="400" height="53" rx="5" fill="#e0eaf5" stroke="#a6b1ac"/>
+<text x="710" y="377" font-size="16">실시간 · StreamBuffers</text>
+<text x="710" y="396" font-size="13">단일 유효 Window</text>
+<rect x="265" y="455" width="430" height="54" rx="5" fill="#e2eee4" stroke="#a6b1ac"/>
+<text x="480" y="477" font-size="16">action_inference.predict_probabilities</text>
+<text x="480" y="496" font-size="13">Random Forest · 1,140 Feature</text>
+<rect x="50" y="555" width="400" height="53" rx="5" fill="#eae3f2" stroke="#a6b1ac"/>
+<text x="250" y="577" font-size="16">predict_people</text>
+<text x="250" y="596" font-size="13">Track별 대표 결과</text>
+<rect x="510" y="555" width="400" height="53" rx="5" fill="#eae3f2" stroke="#a6b1ac"/>
+<text x="710" y="577" font-size="16">predict_candidates</text>
+<text x="710" y="596" font-size="13">실시간 후보 · 점수순</text>
+<rect x="265" y="655" width="430" height="54" rx="5" fill="#fff0d8" stroke="#a6b1ac"/>
+<text x="480" y="677" font-size="16">Django · 조건 충족 시 행동 기록</text>
+<text x="480" y="696" font-size="13">음료 / 움직임 · PostgreSQL</text>
+</g></svg>

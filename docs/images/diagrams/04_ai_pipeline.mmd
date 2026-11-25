@@ -4,13 +4,19 @@ config:
     curve: step
 ---
 flowchart TD
- A[영상 입력] --> B[YOLO Pose · 약 6fps · 17 Keypoints] --> C[관절 좌표 정규화] --> D[38 Features × 30 Steps] --> E[Random Forest · 1,140 Features] --> Q{기록 조건 확인}
- Q --> F[음료 섭취]
- Q --> G[어깨 스트레칭]
- Q --> H[잠깐 자리 비움 동작]
- Q --> I[기타 행동 / 기준 미달 · 제외]
- F & G & H --> J[행동 기록] --> K[(PostgreSQL)]
- R["실시간 · 유효 Pose 15/30 이상 · 6슬롯 간격"] -.-> D
- style E fill:#315d49,color:#fff
- style J fill:#e2eee4
- style K fill:#eae3f2
+ V["MP4 · /predict/video"] --> T["track_people · Pose Tracking"]
+ J["JPEG · /predict/frame"] --> P["predict_pose · ROI 단일 대상"]
+ T & P --> F["step_features · COCO 17점 → 좌표 34 + 각도 4"]
+ F --> W["windows · 30 × 38 · 6fps 목표 · stride 6"]
+ W --> A["클립 · Track별 active_windows"]
+ W --> B["실시간 · StreamBuffers의 단일 유효 Window"]
+ A & B --> R["action_inference.predict_probabilities · RF 1,140차원"]
+ R --> X["predict_people · Track별 평균을 결과로 반환"]
+ R --> Y["predict_candidates · 실시간 후보를 점수순 반환"]
+ X & Y --> D["Django · 조건 충족 시 행동 기록"]
+ classDef inp fill:#e0eaf5,stroke:#86a8ca
+ classDef shared fill:#e2eee4,stroke:#8bad96
+ classDef out fill:#eae3f2,stroke:#b6a1ca
+ class V,J,T,P,A,B inp
+ class F,W,R shared
+ class X,Y,D out
