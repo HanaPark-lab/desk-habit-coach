@@ -99,12 +99,14 @@ def today(request):
     minutes, clock_seconds = divmod(remainder, 60)
     bars, ticks = _timeline(user, day, now)
     valid_today = BehaviorEvent.objects.filter(user=user, is_valid=True, occurred_at__gte=start, occurred_at__lt=end)
-    last = {e: valid_today.filter(event_type=e).values_list("occurred_at", flat=True).first() for e in EventType.values}
+    last = {e: valid_today.filter(event_type=e).values_list("occurred_at", flat=True).first() for e in (EventType.DRINK, EventType.MOVEMENT)}
     monday = day - timedelta(days=day.weekday())  # 이번 주 월~일
     week = []
     for index, label in enumerate(WEEKDAYS):
         date = monday + timedelta(days=index)
-        study_seconds = day_seconds(user, date, now)[State.STUDY] if date <= day else 0
+        study_seconds = seconds[State.STUDY] if date == day else 0
+        if date < day:
+            study_seconds = day_seconds(user, date, now)[State.STUDY]
         week.append({"label": label, "today": date == day, "seconds": study_seconds, "duration": _duration(study_seconds)})
     return render(request, "dashboard/today.html", {
         "summary": summary,
@@ -268,12 +270,11 @@ def staff_dashboard(request):
         {"label": "대기·분석 중", "status": "PENDING·STARTED",
          "count": status_counts.get("PENDING", 0) + status_counts.get("STARTED", 0), "color": STATUS_COLORS["PENDING"]},
     ]
-    recent = [
-        {"job": j, "short_id": str(j.pk)[:8],
-         "action": ACTION_NAMES.get(j.predictions.all()[0].action_label, j.predictions.all()[0].action_label)
-         if j.predictions.all() else "-"}
-        for j in jobs.select_related("user").prefetch_related("predictions")[:20]
-    ]
+    recent = []
+    for job in jobs.select_related("user").prefetch_related("predictions", "events")[:20]:
+        prediction = next(iter(job.predictions.all()), None)
+        label = prediction.action_label if prediction else "-"
+        recent.append({"job": job, "short_id": str(job.pk)[:8], "action": ACTION_NAMES.get(label, label)})
     return render(request, "dashboard/staff.html", {
         "stats": stats, "actions": actions, "statuses": statuses, "segments": segments, "recent": recent,
         "usage": usage,
