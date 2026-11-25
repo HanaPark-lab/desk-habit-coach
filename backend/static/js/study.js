@@ -204,16 +204,20 @@
     if (!stream || !session || session.mode !== "AI" || session.status !== "ACTIVE" || busy || video.readyState < 2) return;
     busy = true; // 한 번에 한 요청만
     const sentFor = session.id;
+    const camera = stream;
+    const current = () => session?.id === sentFor && session.mode === "AI" &&
+      session.status === "ACTIVE" && stream === camera;
     try {
       grab.width = 640;
       grab.height = Math.round((640 * video.videoHeight) / video.videoWidth) || 480;
       grab.getContext("2d").drawImage(video, 0, 0, grab.width, grab.height);
       const blob = await new Promise((r) => grab.toBlob(r, "image/jpeg", 0.7));
+      if (!blob || !current()) return;
       const form = new FormData();
       form.append("frame", blob, "frame.jpg");
-      form.append("seq", String(Date.now())); // 증가하는 프레임 번호 (새로고침해도 줄지 않음)
-      const data = await api(url("frames"), { method: "POST", body: form });
-      if (data.ignored || !session || session.id !== sentFor || !stream) return; // 늦은 응답이 바뀐 세션을 덮지 않게
+      form.append("seq", String(Date.now())); // 서버에서 중복·역순을 확인하는 밀리초 관측 시각
+      const data = await api(`/api/study/sessions/${sentFor}/frames/`, { method: "POST", body: form });
+      if (data.ignored || !current()) return; // 늦은 응답이 바뀐 세션을 덮지 않게
       render(data);
       draw(data.persons, data.phones);
       $("live-status").textContent = { present: "", absent: "· 자리에 사람이 보이지 않아요", unclear: "· 확인 어려움 (가림·여러 명·흐림)" }[data.observation] ?? "";
@@ -232,7 +236,7 @@
       }
       if (data.phone_alert) showAlert("잠깐, 다시 집중해 볼까요?", "휴대폰 사용으로 추정되는 행동이 일정 시간 지속되었어요.");
     } catch (x) {
-      $("live-status").textContent = `· ${errorText(x, "분석 서버 연결 실패")}`;
+      if (current()) $("live-status").textContent = `· ${errorText(x, "분석 서버 연결 실패")}`;
     } finally {
       busy = false;
     }
