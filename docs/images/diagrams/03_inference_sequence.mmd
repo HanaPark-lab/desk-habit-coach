@@ -6,21 +6,21 @@ config:
     wrap: true
 ---
 sequenceDiagram
- participant P0 as Browser
- participant P1 as Django / DRF
+ participant P0 as analyses.js / common.js
+ participant P1 as views.py / DRF
  participant P2 as PostgreSQL
  participant P3 as Redis
- participant P4 as Celery Worker
- participant P5 as FastAPI
+ participant P4 as tasks.py / Celery Worker
+ participant P5 as predictions.py / FastAPI
  P0->>P1: POST /api/analyses/ · MP4 / IP Webcam
- P1->>P2: AnalysisJob 생성 · PENDING
- P1->>P3: enqueue(Job ID)
+ P1->>P2: AnalysisJobViewSet.create · Serializer 검증 후 PENDING
+ P1->>P3: on_commit → enqueue(Job ID)
  P1->>P0: HTTP 202 + Job ID
  P3->>P4: 작업 전달
- P4->>P2: STARTED
- P4->>P4: MP4 읽기 또는 IP Webcam 수집
- P4->>P5: predict_video() · MP4
- P5->>P5: YOLO Pose → Feature → RF
+ P4->>P2: analyze_job · PENDING → STARTED 선점
+ P4->>P4: run_video_job · MP4 읽기 / _capture_into
+ P4->>P5: services.predict_video → POST /predict/video
+ P5->>P5: track_people → predict_people → RF
  P5->>P4: Track ID · Action · Confidence
  alt 처리 성공
   P4->>P2: SUCCESS · 예측 / 조건부 행동 저장
@@ -29,7 +29,7 @@ sequenceDiagram
  end
  loop 종료 상태까지 2초 간격
   P0->>P1: GET /api/analyses/{id}/status/
-  P1->>P2: 본인 작업 ORM 조회
+  P1->>P2: AnalysisJobViewSet.status · 본인 작업 ORM 조회
   P2->>P1: 상태 · 예측 · 기록
   P1->>P0: 결과 JSON
  end

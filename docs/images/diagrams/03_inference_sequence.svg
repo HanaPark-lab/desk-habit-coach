@@ -18,41 +18,41 @@
 <rect x="25" y="813" width="1150" height="236" rx="5" fill="#eeeeee" opacity=".65"/>
 <text x="35" y="829" font-size="12">상태 조회 · 2초 간격 반복</text>
 <rect x="25" y="53" width="150" height="38" rx="4" fill="#dce8f8" stroke="#86a8ca"/>
-<text x="100" y="77" text-anchor="middle">Browser</text>
+<text x="100" y="77" text-anchor="middle">analyses.js</text>
 <path d="M100 91 V120 M100 141 V811 M100 832 V1070" stroke="#b2b8b5" stroke-dasharray="5 4"/>
 <rect x="225" y="53" width="150" height="38" rx="4" fill="#dce8f8" stroke="#86a8ca"/>
-<text x="300" y="77" text-anchor="middle">Django / DRF</text>
+<text x="300" y="77" text-anchor="middle">views.py / DRF</text>
 <path d="M300 91 V120 M300 141 V1070" stroke="#b2b8b5" stroke-dasharray="5 4"/>
 <rect x="425" y="53" width="150" height="38" rx="4" fill="#dce8f8" stroke="#86a8ca"/>
 <text x="500" y="77" text-anchor="middle">PostgreSQL</text>
 <path d="M500 91 V239 M500 260 V1070" stroke="#b2b8b5" stroke-dasharray="5 4"/>
 <rect x="625" y="53" width="150" height="38" rx="4" fill="#dce8f8" stroke="#86a8ca"/>
 <text x="700" y="77" text-anchor="middle">Redis</text>
-<path d="M700 91 V416 M700 437 V711 M700 732 V770 M700 791 V1070" stroke="#b2b8b5" stroke-dasharray="5 4"/>
+<path d="M700 91 V416 M700 437 V474 M700 496 V711 M700 732 V770 M700 791 V1070" stroke="#b2b8b5" stroke-dasharray="5 4"/>
 <rect x="825" y="53" width="150" height="38" rx="4" fill="#dce8f8" stroke="#86a8ca"/>
-<text x="900" y="77" text-anchor="middle">Celery Worker</text>
+<text x="900" y="77" text-anchor="middle">tasks.py / Worker</text>
 <path d="M900 91 V1070" stroke="#b2b8b5" stroke-dasharray="5 4"/>
 <rect x="1025" y="53" width="150" height="38" rx="4" fill="#dce8f8" stroke="#86a8ca"/>
-<text x="1100" y="77" text-anchor="middle">FastAPI</text>
+<text x="1100" y="77" text-anchor="middle">predictions.py</text>
 <path d="M1100 91 V1070" stroke="#b2b8b5" stroke-dasharray="5 4"/>
 <path d="M100 145 H300" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
 <text x="200.0" y="137" text-anchor="middle" font-size="13">POST /api/analyses/ · MP4 / IP Webcam</text>
 <path d="M300 204 H500" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
-<text x="400.0" y="196" text-anchor="middle" font-size="13">AnalysisJob 생성 · PENDING</text>
+<text x="400.0" y="196" text-anchor="middle" font-size="13">create · Serializer → PENDING</text>
 <path d="M300 263 H700" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
-<text x="500.0" y="255" text-anchor="middle" font-size="13">enqueue(Job ID)</text>
+<text x="500.0" y="255" text-anchor="middle" font-size="13">on_commit → enqueue(Job ID)</text>
 <path d="M300 322 H100" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
 <text x="200.0" y="314" text-anchor="middle" font-size="13">HTTP 202 + Job ID</text>
 <path d="M700 381 H900" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
 <text x="800.0" y="373" text-anchor="middle" font-size="13">작업 전달</text>
 <path d="M900 440 H500" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
-<text x="700.0" y="432" text-anchor="middle" font-size="13">STARTED</text>
+<text x="700.0" y="432" text-anchor="middle" font-size="13">analyze_job · STARTED 선점</text>
 <path d="M900 499 h45 v17 h-45" fill="none" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
-<text x="892" y="491" text-anchor="end">MP4 읽기 또는 IP Webcam 수집</text>
+<text x="892" y="491" text-anchor="end">run_video_job · MP4 / _capture_into</text>
 <path d="M900 558 H1100" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
-<text x="1000.0" y="550" text-anchor="middle" font-size="13">predict_video() · MP4</text>
+<text x="1000.0" y="550" text-anchor="middle" font-size="13">services.predict_video · POST /predict/video</text>
 <path d="M1100 617 h45 v17 h-45" fill="none" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
-<text x="1092" y="609" text-anchor="end">YOLO Pose → Feature → RF</text>
+<text x="1092" y="609" text-anchor="end">track_people → predict_people → RF</text>
 <path d="M1100 676 H900" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
 <text x="1000.0" y="668" text-anchor="middle" font-size="13">Track ID · Action · Confidence</text>
 <path d="M900 735 H500" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
@@ -62,7 +62,7 @@
 <path d="M100 853 H300" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
 <text x="200.0" y="845" text-anchor="middle" font-size="13">GET /api/analyses/{id}/status/</text>
 <path d="M300 912 H500" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
-<text x="400.0" y="904" text-anchor="middle" font-size="13">본인 작업 ORM 조회</text>
+<text x="400.0" y="904" text-anchor="middle" font-size="13">status · 본인 작업 ORM 조회</text>
 <path d="M500 971 H300" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
 <text x="400.0" y="963" text-anchor="middle" font-size="13">상태 · 예측 · 기록</text>
 <path d="M300 1030 H100" stroke="#89928e" stroke-linejoin="miter" marker-end="url(#a)"/>
