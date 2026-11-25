@@ -42,3 +42,9 @@
 영상 결과: `model_profile, model_version, predictions[{track_id, action_label, confidence, window_count, probabilities}], error_code(NO_PERSON/NO_VALID_WINDOW), message, processing_ms`. 422: INVALID_VIDEO, TOO_SHORT(5초 미만), INVALID_FRAME, INVALID_ROI. 413: TOO_LARGE. 401: UNAUTHORIZED.
 
 프레임 결과: `persons, phones, track_count, quality_passed, presence_candidate, action_candidates[{label, probability}], buffer_steps, model_profile, model_version, processing_ms`. DB 쓰기 없음.
+
+## 최적화 후 실행 세부 사항
+
+- 상태 조회는 인증된 소유자의 대상 작업이 만료된 STARTED일 때 해당 작업만 FAILURE(`WORKER_LOST`)로 정산한다. 워커 기동 시에는 만료된 STARTED 전체를 정산한다. 상태·예측·기록 응답 키는 기존과 같다.
+- FastAPI 영상 multipart 키는 `file`, 프레임 키는 `frame`이다. 프레임 응답에 `valid_pose_frames`, `buffer_status`를 포함한다. Django 프레임 요청은 잘못된 추론 서버 성공 응답을 `BAD_AI_RESPONSE`와 503으로 반환한다.
+- 일시정지·종료 및 수동 모드의 실시간 버퍼 정리는 소유 작업에서 상태 변경이 성공한 뒤 요청한다.
