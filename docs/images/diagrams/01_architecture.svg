@@ -8,7 +8,7 @@
 <g id="edge12" class="edge">
 <title>B&#45;&gt;D</title>
 <polyline points="150,132 150,250" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
-<text text-anchor="middle" x="229" y="160" font-family="NanumGothic" font-size="11.00">HTTP 요청 / 응답</text>
+<text text-anchor="middle" x="229" y="160" font-family="NanumGothic" font-size="11.00">업로드 · 202 ID · 상태 JSON</text>
 </g>
 <g id="edge13" class="edge">
 <title>I&#45;&gt;D</title>
@@ -18,7 +18,7 @@
 <g id="edge1" class="edge">
 <title>D&#45;&gt;F</title>
 <polyline points="303,263 459,263" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-<text text-anchor="middle" x="381" y="252" font-family="NanumGothic" font-size="11.00">JPEG 실시간 프레임</text>
+<text text-anchor="middle" x="381" y="252" font-family="NanumGothic" font-size="11.00">실시간 JPEG (확장)</text>
 </g>
 <g id="edge2" class="edge">
 <title>F&#45;&gt;D</title>
@@ -28,27 +28,27 @@
 <g id="edge3" class="edge">
 <title>D&#45;&gt;R</title>
 <polyline points="285,250 285,233 901,233 901,255" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-<text text-anchor="middle" x="780" y="226" font-family="NanumGothic" font-size="11.00">Job ID</text>
+<text text-anchor="middle" x="780" y="226" font-family="NanumGothic" font-size="11.00">커밋 후 Job ID</text>
 </g>
 <g id="edge4" class="edge">
 <title>R&#45;&gt;C</title>
 <polyline points="906,291 906,455" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-<text text-anchor="middle" x="949" y="357" font-family="NanumGothic" font-size="11.00">작업 전달</text>
+<text text-anchor="middle" x="949" y="357" font-family="NanumGothic" font-size="11.00">Celery 작업 메시지</text>
 </g>
 <g id="edge5" class="edge">
 <title>C&#45;&gt;F</title>
-<polyline points="820,465 647,465 647,296" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-<text text-anchor="middle" x="728" y="456" font-family="NanumGothic" font-size="11.00">MP4</text>
+<polyline points="820,482 647,482 647,296" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<text text-anchor="middle" x="728" y="475" font-family="NanumGothic" font-size="11.00">/predict/video · MP4</text>
 </g>
 <g id="edge6" class="edge">
 <title>F&#45;&gt;C</title>
-<polyline points="655,270 744,270 744,480 820,480" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-<text text-anchor="middle" x="744" y="505" font-family="NanumGothic" font-size="11.00">사람별 예측 JSON</text>
+<polyline points="655,270 744,270 744,462 820,462" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<text text-anchor="middle" x="815" y="424" font-family="NanumGothic" font-size="11.00">사람별 예측 JSON</text>
 </g>
 <g id="edge7" class="edge">
 <title>D&#45;&gt;P</title>
 <polyline points="148,296 148,613" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-<text text-anchor="middle" x="169" y="480" font-family="NanumGothic" font-size="11.00">ORM</text>
+<text text-anchor="middle" x="169" y="480" font-family="NanumGothic" font-size="11.00">작업 생성·조회</text>
 </g>
 <g id="edge9" class="edge">
 <title>D&#45;&gt;M</title>
@@ -68,7 +68,7 @@
 <g id="edge8" class="edge">
 <title>C&#45;&gt;P</title>
 <polyline points="936,471 975,471 975,635 225,635" fill="none" stroke="#929a97" stroke-linejoin="miter" marker-end="url(#arrow)"/>
-<text text-anchor="middle" x="740" y="626" font-family="NanumGothic" font-size="11.00">결과 저장</text>
+<text text-anchor="middle" x="740" y="626" font-family="NanumGothic" font-size="11.00">상태·예측 저장</text>
 </g>
 <g id="node1" class="node" transform="translate(105 554)">
 <title>B</title>

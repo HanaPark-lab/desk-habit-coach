@@ -6,17 +6,20 @@ config:
     rankSpacing: 72
 ---
 flowchart TD
- B[Web Browser] <--> D
- I[IP Webcam] --> D
+ B[Web Browser] -->|MP4 업로드 및 상태 조회| D
+ D -->|202 Job ID 및 결과 JSON| B
+ I[IP Webcam] -->|MJPEG 확장 입력| D
  subgraph Docker Compose
  D[Django + DRF / 시간 엔진] -->|JPEG| F[FastAPI / YOLO Pose / RF]
  F -->|관측 및 행동 후보| D
- D -->|Job ID| R[Redis] --> C[Celery Worker]
- C -->|MP4| F
+ D -->|커밋 뒤 Job ID| R[Redis]
+ R -->|Celery 작업 메시지| C[Celery Worker]
+ C -->|POST /predict/video · MP4| F
  F -->|예측 JSON| C
- D --> P[(PostgreSQL)]
- C --> P
- D --> M[(Media Volume)] --> C
+ D -->|작업 생성·조회| P[(PostgreSQL)]
+ C -->|상태·사람별 예측 저장| P
+ D -->|업로드 파일 저장| M[(Media Volume)]
+ M -->|MP4 파일 읽기| C
  C -->|카메라 중계 요청| D
  end
  classDef web fill:#e2eee4,stroke:#8bad96
