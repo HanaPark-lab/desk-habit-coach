@@ -1,85 +1,128 @@
 # Desk Habit Coach
 
-공부 추정 시간과 음료·움직임을 기록하는 웹 앱입니다. 수동 타이머, 카메라 기반 집중 모드, MP4·IP Webcam 영상 분석, 최근 7일 기록과 관리자 통계를 제공합니다.
+## 1. 프로젝트 소개
 
-자체 학습 Random Forest 모델은 음료 섭취(`drink_return`), 어깨 스트레칭(`wave`), 잠깐 자리 비움(`walk_turn_walk`), 기타 행동(`other`)를 분류합니다. 모델 입력은 6fps 기준 30 step × 38 feature입니다. 원 교과의 제공 6종 모델은 사용자 확인에 따라 자체 학습 모델로 대체했습니다.
+교과 10 영상 분석 웹 앱입니다. 사용자가 MP4를 업로드하면 사람별 동작 분류 결과를 확인할 수 있습니다. IP Webcam 수집, 수동·카메라 기반 공부 타이머, 습관 기록, 개인 및 관리자 통계가 같은 앱에서 제공됩니다. 제출 모델은 자체 학습한 Random Forest 4종입니다.
 
-## 설치와 실행
+## 2. 실행 방법
 
-Docker와 Docker Compose가 필요합니다.
+Docker와 Docker Compose가 필요합니다. 기존 설치의 `.env`와 PostgreSQL 접속 설정은 그대로 사용합니다.
 
 ```bash
 cp -n .env.example .env
 docker compose config --quiet
 docker compose up -d --build
 docker compose ps
+docker compose exec django python manage.py createsuperuser
 ```
 
-처음 실행하기 전에 `.env`의 `DJANGO_SECRET_KEY`와 `POSTGRES_PASSWORD`에 고유한 값을 설정합니다. 기존 `.env`와 PostgreSQL 볼륨을 사용하는 경우 기존 접속 설정을 유지합니다. 브라우저에서 `http://localhost:8000`을 열고 회원가입합니다. 관리자 통계 계정은 `docker compose exec django python manage.py createsuperuser`로 만들 수 있습니다.
+첫 기동 전에 `.env`의 `DJANGO_SECRET_KEY`와 `POSTGRES_PASSWORD`를 설정합니다. Django 컨테이너 시작 명령이 `migrate --noinput`과 `collectstatic --noinput`을 순서대로 실행한 뒤 Gunicorn을 시작합니다. Celery는 Django의 healthcheck가 통과한 뒤 시작합니다. PostgreSQL 데이터는 `pgdata`, 작업 영상은 `media` 볼륨에 저장됩니다.
 
-| 환경변수 | 예시·용도 |
-|---|---|
-| `MODEL_PROFILE` | `service` |
-| `DJANGO_TIME_ZONE` | `Asia/Seoul` |
-| `POSTGRES_DB`, `POSTGRES_USER` | `desk_habit` |
-| `CAMERA_DESK_CAM_1_URL` | 선택. 같은 네트워크의 IP Webcam MJPEG 주소 |
-| `AI_INTERNAL_TOKEN` | 선택. Django·Celery와 FastAPI에 동일한 내부 인증 토큰 적용 |
+| 환경변수 | 용도 |
+| --- | --- |
+| `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, `DJANGO_TIME_ZONE` | Django 비밀 키, 서비스 호스트, 시간대(기본 Asia/Seoul) |
+| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | PostgreSQL 데이터베이스와 계정 |
+| `MODEL_PROFILE=service`, `MAX_UPLOAD_MB=50` | 자체 학습 모델과 영상 크기 제한 |
+| `AI_INTERNAL_TOKEN` | 선택. Django·Celery·FastAPI가 동일한 내부 인증 토큰 사용 |
+| `CAMERA_DESK_CAM_1_URL` | 선택. 서버에서 도달 가능한 IP Webcam MJPEG 주소 |
+| `DEFAULT_CAPTURE_SECONDS=8`, `FASTAPI_TIMEOUT=180` | 카메라 기본 수집 초와 영상 추론 HTTP 읽기 제한 |
+| `EVENT_THRESHOLD_DRINK`, `EVENT_THRESHOLD_MOVEMENT` | 습관 기록 기준. 예제 기본값은 각각 0.5 |
 
-종료 시 `docker compose down`을 사용하면 PostgreSQL과 미디어 볼륨이 유지됩니다.
+RF 파일 세 개를 `ai_service/models/service/`에 둡니다. Compose가 이 디렉터리를 FastAPI의 `/app/models/service/`에 읽기 전용으로 연결합니다.
 
-## 구조
+- `rf_action_baseline.joblib`
+- `rf_feature_columns.json`
+- `rf_training_info.json`
 
-Django와 DRF는 사용자 화면, 인증, 시간 상태 및 데이터 저장을 담당합니다. 클립은 Redis로 작업을 전달해 Celery에서 FastAPI 추론을 호출합니다. 실시간 프레임은 Django가 FastAPI에 전달하고 FastAPI가 YOLO Pose와 자체 RF 모델로 분석합니다. PostgreSQL은 세션, 분석 및 행동 기록을 보관합니다. [아키텍처](docs/ARCHITECTURE.md) · [AI 파이프라인](docs/AI_PIPELINE.md)
+| 화면 | 주소 |
+| --- | --- |
+| 가입·로그인 | http://localhost:8000/accounts/signup/ · http://localhost:8000/accounts/login/ |
+| 사용자 | http://localhost:8000/dashboard/ · http://localhost:8000/analyses/ · http://localhost:8000/study/ · http://localhost:8000/reports/ |
+| 관리자 통계·Django Admin | http://localhost:8000/staff/dashboard/ · http://localhost:8000/admin/ |
 
-### Figure 01. 전체 시스템 아키텍처
+## 3. 시스템 아키텍처
 
-[![Docker Compose의 5개 서비스와 실시간·비동기 분석 경로](docs/images/diagrams/01_architecture.svg)](docs/images/diagrams/01_architecture.svg)
+![Django, PostgreSQL, Redis, Celery Worker, FastAPI의 데이터 흐름](docs/images/diagrams/01_architecture.svg)
 
-브라우저는 Django의 8000번 포트로 접속합니다. 실시간 분석은 Django가 JPEG 프레임을 FastAPI로 보내고 관측과 행동 후보를 받아 시간을 집계합니다. 클립 분석은 Redis가 전달한 Job ID를 Celery가 받아 MP4를 FastAPI에 전달한 뒤 결과를 PostgreSQL에 저장합니다.
+Django가 업로드 파일과 작업을 저장하고 Redis에 작업 ID를 보냅니다. Celery Worker가 공유 미디어의 MP4를 FastAPI로 전송하고 PostgreSQL에 예측을 저장합니다. IP Webcam은 작업 입력을 준비하고, 실시간 JPEG는 Django와 FastAPI 사이의 별도 API를 사용합니다. [아키텍처](docs/ARCHITECTURE.md)
 
-### Figure 02. 데이터베이스 ERD
+## 4. 데이터베이스 ERD
 
-[![Django 데이터베이스 ERD](docs/images/diagrams/02_erd.svg)](docs/images/diagrams/02_erd.svg)
+![Django 모델과 외래 키](docs/images/diagrams/02_erd.svg)
 
-사용자는 여러 공부 세션과 분석 작업을 가질 수 있고, 각 세션에는 상태 구간이, 각 분석 작업에는 사람별 예측이 연결됩니다. 행동 기록의 세션·작업 연결은 선택이고, 로그인·접속을 담는 날짜별 활동은 사용자당 서울 날짜마다 한 행으로 저장합니다. [전체 필드 및 제약](docs/ERD.md)
+사용자별 Job과 공부 세션을 저장하며 Job에는 사람별 예측, 세션에는 상태 구간이 연결됩니다. 행동 기록은 Job 또는 세션을 선택적으로 참조합니다. [전체 필드·삭제 정책](docs/ERD.md)
 
-### Figure 03. AI 분석 버튼 실행 흐름
+## 5. AI 분석 버튼 흐름
 
-[![AI 분석 요청부터 결과 저장과 브라우저 폴링까지](docs/images/diagrams/03_inference_sequence.svg)](docs/images/diagrams/03_inference_sequence.svg)
+![분석 시작, 작업 큐, 추론, 결과 저장, 상태 조회](docs/images/diagrams/03_inference_sequence.svg)
 
-유효한 작업 요청은 202와 Job ID를 반환하고, 브라우저는 해당 ID로 상태를 조회합니다. Worker는 업로드 파일을 읽거나 카메라 중계에서 MP4를 수집해 추론하며, 예측과 작업 성공 상태, 조건을 통과한 행동 기록을 함께 저장합니다. 수집·추론·저장 오류가 발생하면 작업에 실패 상태와 오류 코드를 남깁니다.
+`analyses.js`가 `POST /api/analyses/`를 보내면 DRF가 입력을 검증하고 작업을 생성합니다. 202와 작업 ID로 `GET /api/analyses/{id}/status/`를 조회합니다. `analyze_job`이 PENDING을 선점하고 `run_video_job`이 영상을 추론해 상태와 예측을 저장합니다. 잘못된 파일 확장자는 큐에 넣지 않고 FAILURE로 저장합니다. [API 명세](docs/API_SPECIFICATION.md)
 
-### Figure 04. AI 모델 추론 파이프라인
+## 6. AI 모델 및 입력 형식
 
-[![AI 모델 추론과 행동 기록 흐름](docs/images/diagrams/04_ai_pipeline.svg)](docs/images/diagrams/04_ai_pipeline.svg)
+![클립과 실시간의 공통 Feature, Window 및 RF](docs/images/diagrams/04_ai_pipeline.svg)
 
-학습과 추론은 어깨 중심과 어깨 너비로 좌표를 정규화한 뒤, 30스텝의 38개 특징을 1,140차원으로 펼쳐 Random Forest에 입력합니다. Django는 조건을 통과한 음료 섭취와 어깨 스트레칭을 횟수로, 잠깐 자리 비움을 동작 기록으로 저장하며 기타 행동은 생활 습관 기록에서 제외합니다. 휴식과 장기 자리 비움은 시간 엔진이 이탈·복귀 시각으로 별도 판정합니다.
+| 항목 | 형식 |
+| --- | --- |
+| 자체 RF 클래스 | `drink_return` 음료 섭취, `wave` 어깨 스트레칭, `walk_turn_walk` 잠깐 자리 비움, `other` 기타 |
+| Feature·Sequence | YOLO Pose COCO 17 Keypoints. 어깨 중심·너비 정규화 좌표 34개와 각도 4개로 스텝당 38개. 목표 6fps, 30스텝(약 5초), stride 6, 1,140차원 |
+| MP4 업로드 | 기본 최대 50 MB, 샘플링 후 최소 30스텝. Django 허용 확장자는 `.mp4`, `.mov`, `.avi`, `.mkv` |
+| IP Webcam | 기본 8초, 허용 범위 5~15초. Django가 중계하는 MJPEG를 Worker가 MP4로 모음 |
+| FastAPI 영상 | `POST /predict/video` multipart `file` → 프로필·버전, `predictions[]`(Track ID, 라벨, 점수, Window 수, 전체 확률), 오류 정보, 처리 시간 |
+| FastAPI 실시간 | `POST /predict/frame` multipart `frame` JPEG(최대 2 MiB), 선택 `roi/stream_key/seq/detect_phone` → 사람·휴대폰, 관측, 행동 후보, 버퍼 정보 |
 
-### Figure 05. 공부 시간 및 휴식 판단 로직
+클립은 유효 Track별 활성 Window 확률을 평균합니다. 실시간은 단일 ROI 대상의 최근 유효 Window를 사용합니다. [AI 파이프라인](docs/AI_PIPELINE.md)
 
-[![공부 시간 및 휴식 판단 상태 전환](docs/images/diagrams/05_study_state.svg)](docs/images/diagrams/05_study_state.svg)
+![공부·휴식과 연결 끊김 상태 전환](docs/images/diagrams/05_study_state.svg)
 
-AI 모드는 한 사람이 3초간 안정적으로 보이면 공부를, 유효한 부재가 5초 지속되면 이탈 대기를 기록합니다. 복귀가 3초간 확인되면 첫 복귀 시각을 기준으로 15분 이내의 이탈 전체를 휴식으로 확정합니다. 수동 타이머는 버튼과 연결 신호를 따르며, 음료·움직임 분류는 별도의 행동 기록을 생성합니다.
+공부·휴식은 착석과 이탈·복귀 관측으로 정산합니다. 집중 모드 프레임은 메모리에서 처리하고 업로드·수집 영상은 작업 파일로 저장합니다.
 
-## 화면
-
-[오늘](docs/screenshots/today.png) · [집중 모드](docs/screenshots/study.png) · [집중 모드 모바일](docs/screenshots/study-mobile.png) · [분석](docs/screenshots/analyses.png) · [기록](docs/screenshots/reports.png) · [관리자](docs/screenshots/staff.png)
-
-## 시연 순서
-
-1. 집중 모드를 시작하고 카메라를 켭니다. 한 사람이 3초 동안 안정적으로 감지되면 공부 상태로 전환됩니다.
-2. 음료를 마시거나 한 팔을 가슴 앞으로 당기는 어깨 스트레칭을 해 행동 기록을 확인합니다.
-3. 5초 이상 자리를 비운 뒤 15분 안에 돌아옵니다. 복귀가 3초간 확인되면 이탈 구간이 휴식으로 분류됩니다.
-4. 기록 페이지에서 시간과 행동을 확인합니다. 잘못 인식된 행동은 오인식으로 표시할 수 있습니다.
-5. 분석 화면에서 5초 이상 MP4를 제출하고 작업 상태와 사람별 결과를 확인합니다. 작업 상세는 기록 페이지에서도 열 수 있습니다.
-6. 관리자 계정으로 관리자 통계의 예측 및 상태 분포를 확인합니다.
-
-## 개인정보와 한계
-
-집중 모드의 원본 프레임은 저장하지 않고 시간과 행동 결과를 저장합니다. 직접 업로드하거나 IP Webcam으로 수집한 클립은 서버 미디어 볼륨에 작업 파일로 보관되며, 분석 작업을 삭제하면 연결된 결과와 파일도 삭제됩니다.
-
-AI 공부 시간은 사람 감지를 바탕으로 추정합니다. 가림, 다중 인물, 연결 끊김은 확인 불가로 처리합니다. 행동은 오인식될 수 있으며 음료는 용량 없이 횟수만 기록합니다. 잠깐 자리 비움은 일어나 화면을 벗어났다가 돌아오는 학습 동작의 표시명입니다. 휴식과 장기 자리 비움은 유효한 부재와 복귀 관측 시각으로 판단합니다. [학습 자료 확인](docs/TRAINING_REPORT.md#서비스-표시명과-학습-동작) 선택 기능인 휴대폰 감지는 공부 시간을 차감하지 않습니다. 80%는 학습에 포함된 3명의 사람 단위 교차검증 결과입니다.
-
-## 검증 결과
+## 7. 실행 결과 및 검증
 
 [최종 테스트 보고서](docs/FINAL_TEST_REPORT.md) · [테스트 케이스](docs/TEST_CASES.md)
+
+격리 Docker 프로젝트에서 Django 97개와 FastAPI 19개 테스트가 통과했습니다. 5개 서비스를 재시작한 뒤 동일 분석 작업, 예측 두 건과 MP4 해시를 확인했습니다.
+
+### MP4 분석 성공
+
+![단일 인물 MP4 처리 완료](docs/screenshots/verified-mp4.png)
+
+6초·30fps 단일 인물 MP4 입력에서 SUCCESS, Track 1과 움직임 기록이 표시됐습니다.
+
+### 다중 인물 분석
+
+![다중 인물의 Track 1과 2](docs/screenshots/verified-multi.png)
+
+6초·30fps 다중 인물 MP4 입력에서 Track 1·2가 표시됐고 개인 습관 기록을 보류했습니다.
+
+### 잘못된 파일
+
+![영상이 아닌 파일의 실패 결과](docs/screenshots/verified-invalid.png)
+
+TXT 제출에 202 작업 응답을 받고 저장된 상태가 FAILURE, 오류 코드가 INVALID_FILE임을 확인했습니다.
+
+### IP Webcam
+
+![IP Webcam 입력 방식으로 테스트 MJPEG를 분석한 결과](docs/screenshots/verified-ipcam-fixture.png)
+
+격리 MJPEG 테스트 소스의 정지 1인 프레임을 기본 8초간 수집해 MP4로 분석했고, SUCCESS와 Track 1을 확인했습니다.
+
+설정된 물리 장치는 CAMERA_UNAVAILABLE을 반환했습니다. 실제 장치의 수집·분석 성공은 NOT RUN입니다.
+
+### 사용자 대시보드
+
+![세션 종료 후 사용자 대시보드](docs/screenshots/verified-today.png)
+
+가상 카메라로 진행한 세션을 종료한 뒤 오늘 공부 시간과 시간 구간을 확인했습니다.
+
+### 공부 및 실시간 분석
+
+![가상 카메라와 관절 오버레이가 보이는 집중 모드](docs/screenshots/verified-study.png)
+
+640×480 정지 1인 영상의 가상 카메라 입력에서 STUDY 상태와 MOVEMENT 이벤트 저장을 확인했습니다.
+
+### 관리자 대시보드
+
+![관리자 통계와 최근 분석 작업](docs/screenshots/verified-staff.png)
+
+관리자 계정에서 분석 결과 분포와 최근 작업을 확인했고, 일반 계정은 403을 받았습니다.
