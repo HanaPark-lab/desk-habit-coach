@@ -1,5 +1,66 @@
 # Desk Habit Coach 최종 테스트 보고서
 
+## 최적화 버전 검증 · 2026-11-25 (Asia/Seoul)
+
+기존 Compose 서비스 5개를 그대로 사용하는 `dhc-opt-verify` 프로젝트를 구성했다. 브라우저는 `127.0.0.1:18089`에 연결했고 DB와 미디어는 별도 볼륨을 사용했다. 아래는 이 버전에서 새로 확인한 결과다. 하단의 2026-11-24 기록은 비교용 이력이다.
+
+| 검증 | 결과 | 증거 |
+| --- | --- | --- |
+| Django 전체 | PASS · 97개 | 격리 PostgreSQL의 테스트 DB. 업로드 확장 없이 실행, 수정된 제목 보존, 대상 작업만 만료 처리 회귀를 포함한다. `makemigrations --check --dry-run` 결과 변경 없음. |
+| FastAPI 전체 | PASS · 19개 | 격리 FastAPI 컨테이너에서 기존 pytest 실행, 8.52초. Starlette의 httpx 사용 중단 예고 경고 1건. 로컬 기본 TestClient 대기는 컨테이너 실행으로 우회했다. |
+| Compose 구성 | PASS | 구성 검사, 빌드, 5개 서비스 기동 및 Django 자동 migrate. 호스트 포트만 격리 검증용으로 재정의했다. |
+| 세션·실시간 | PASS | 브라우저 가상 카메라에 640×480 고정 1인 소스를 넣어 `present`, STUDY, 30슬롯 및 4개 모델 후보를 확인했다. 새 검증 계정에서 실시간 `MOVEMENT/wave`를 실제 세션 이벤트 API로 조회했다. 중복 보류·휴식 전환은 Django 스위트에서 검증했다. 물리 웹캠과 장시간 테스트는 NOT RUN. |
+| 검증 범위 | PASS | 위 작업과 계정은 격리 프로젝트에만 있다. 기존 프로젝트의 DB·미디어 볼륨은 변경하지 않았다. |
+
+### 교과 T01–T10
+
+| ID | 결과 | 증거 |
+| --- | --- | --- |
+| T01 모델 계약 | PASS | 자체 RF `service` 모델, 4종 클래스, 1,140개 Feature 및 정확한 이름·순서, 30 × 38 스텝, 6fps와 stride 6 검증. 원 교과 6종 모델 파일을 사용하는 실행은 NOT RUN. |
+| T02 MP4 분석·저장 | PASS | 실제 브라우저에서 6초·30fps 1인 MP4 업로드. 202 → Redis/Celery → FastAPI → PostgreSQL → 화면 SUCCESS. 1개 Track, `wave` 0.9633, MOVEMENT 1건. 고정 이미지 반복 입력에 대한 모델 출력이며 자세 정답 검증은 아니다. |
+| T03 실제 IP Webcam | NOT RUN (성공 조건) | 연결 요청을 실행했으며 설정된 물리 카메라에 도달하지 못해 작업이 `FAILURE / CAMERA_UNAVAILABLE`로 종료됐다. 실제 장치 연결·수집·분석 성공은 미검증. 격리 MJPEG 테스트 소스에서 8초 수집 및 MP4 분석은 PASS. |
+| T04 다중 인물 | PASS | 6초·30fps 다중 인물 MP4에서 Track 1·2, `wave` 점수 0.7712/0.9389, 개인 습관 기록 보류. |
+| T05 비동기 작업 ID | PASS | 두 MP4 POST에서 HTTP 202와 PENDING 작업 ID를 먼저 받고 후속 GET과 화면에서 완료 확인. |
+| T06 상태·예측 저장 | PASS | 실제 PostgreSQL에서 다중 인물 작업 SUCCESS 및 사람별 예측 두 행 확인. 작업 ID `02374f7a-f5a6-44ba-8a5f-dfef088742a7`. |
+| T07 접근·CRUD | PASS | 다른 사용자 작업 상태 404, 일반 사용자의 staff 화면 403을 브라우저에서 확인. 제목·메모, 목록 격리, 연쇄 삭제는 Django 테스트로 확인. |
+| T08 관리자 | PASS | 관리자 실제 화면 HTTP 200 및 작업·행동·상태 집계 렌더링. |
+| T09 오류 처리 | PASS | 브라우저 `.txt` 제출 → HTTP 202 및 `FAILURE / INVALID_FILE`. 실카메라 장애 경로의 `CAMERA_UNAVAILABLE` 확인. 깨진·짧은 영상과 큐·저장 오류는 테스트 스위트에서 확인. |
+| T10 데이터 유지 | PASS | 검증 프로젝트의 5개 서비스를 재시작했다. 동일 작업 ID, SUCCESS와 두 예측 값, 미디어 SHA-256 `bfad6dbe39a9562f4600d4e774bf51bbc83115a9d69c3fff98d7e204bd539266`이 모두 일치했다. |
+
+MP4와 가상 카메라 입력은 Ultralytics 패키지 내 테스트용 bus.jpg의 반복 프레임으로 만들었다. 단일 인물 입력에는 이미지 일부를 잘라 사용했다. IP Webcam 성공 캡처는 격리된 로컬 MJPEG 테스트 소스의 실제 브라우저 응답이다.
+
+### 최적화 전후 비교
+
+기준은 Git HEAD의 `ai_service/`, `backend/` 코드다. 변경 집계는 같은 두 트리의 코드·테스트·정적 파일을 포함한다. Python·HTML·JS·CSS 90개 파일 전체는 6,233줄에서 6,293줄로 바뀌었다. 21개 수정 파일에 224줄 추가, 164줄 제거(순증 60줄)였다. CPU 경합 제어, HTTP 실패 검증, 상태 가드와 회귀 테스트가 추가됐고 테스트 전용 래퍼, 사용하지 않는 스타일·내보내기, 반복 조회를 정리했다.
+
+| 기준 | 전 | 후 |
+| --- | ---: | ---: |
+| 분석 status, PENDING SQL 문 수 | 4 | 2 |
+| 분석 status, SUCCESS SQL 문 수 | 4 | 3 |
+| 관리자 페이지, 최근 작업 20건 포함 SQL 문 수 | 36 | 17 |
+| 오늘 페이지 SQL 문 수 | 13 | 11 |
+| 640×480 JPEG, 휴대폰 끔 중앙값 / 최대 | 25 / 31ms | 23 / 26ms |
+| 동일 JPEG, 휴대폰 켬 중앙값 / 최대 | 45 / 59ms | 42 / 71ms |
+| 6초·30fps 다중 인물 MP4 중앙값 / 최대 | 1,194 / 1,329ms | 1,120 / 1,146ms |
+| 영상 시작 약 250ms 뒤 투입한 JPEG 중앙값 / 최대 | 921 / 1,026ms | 865 / 885ms |
+
+SQL 비교는 동일한 SQLite 인메모리 데이터와 강제 인증 요청(미들웨어 제외)을 사용했다. 이번 수치는 PostgreSQL 실행 계획이나 운영 처리량을 의미하지 않는다. AI 비교는 동일 로컬 CPU·모델·입력·스레드 설정에서 워밍업한 뒤 라우터 함수의 `processing_ms`를 사용했다. 단독 프레임은 설정당 12회, 영상과 혼합 조건은 각 5회다. 두 Track의 라벨·확률·Window 수가 일치했다. 혼합 부하에서 영상 tracker와 프레임 Pose가 공유하는 Lock의 대기가 남으며, 소표본이므로 지연 차이를 운영 개선율로 일반화하지 않는다.
+
+### 변경 파일
+
+- AI 공통 추론 및 락 · `ai_service/main.py`, `routers/predictions.py`, `services/action_inference.py`, `services/pose_pipeline.py`.
+- Django 작업·HTTP·화면 입력 · `backend/analyses/{habits,page_views,services,tasks,tests,views}.py` 및 `backend/templates/analyses/list.html`.
+- 세션·이벤트·통계 · `backend/study/{views,tests}.py`, `backend/study/services/event_service.py`, `backend/dashboard/views.py`.
+- 정적 자산 · `backend/static/css/app.css`, `backend/static/js/{analyses,common,reports,study,today}.js`.
+- 제출 문서 · `README.md`, `docs/{API_SPECIFICATION,ARCHITECTURE,ERD,AI_PIPELINE,FINAL_TEST_REPORT}.md`, `docs/images/diagrams/`의 01–05 Mermaid·SVG 각 5개.
+- 추가 · `docs/screenshots/verified-*.png` 7개. 삭제 파일 없음. RF 및 학습 산출물, Compose 구성, 마이그레이션 파일의 변경 사항 없음.
+
+### 남은 검증
+
+물리 IP Webcam이 서비스에서 접근 가능한 상태에서 T03 성공과 해당 캡처를 재확인한다. 실제 웹캠 장시간 관측, PostgreSQL의 대규모 데이터 실행 계획, 콜드 스타트와 혼합 부하의 지연 분포는 NOT RUN이다. 향후 구조 변경의 작업 유실 정책, 통합 습관 저장 장애에서의 기존 SAVE_ERROR 동작 변경, Pose 프로세스 분리는 이번 변경에 포함되지 않았다.
+
+## 이전 버전 검증 이력 · 2026-11-24
+
 검증일 2026-11-24 (Asia/Seoul). 작업 브랜치는 `main`이다. Ubuntu 26.04 x86_64, Python 3.14, Docker Compose 5.6.1, PostgreSQL 17, Redis 7, Chromium Headless 145에서 실행했다. 브라우저 검증은 별도 Compose 프로젝트 `dhc-final-verify`와 로컬 포트 18080, 별도 PostgreSQL·미디어 볼륨 및 테스트 계정으로 수행했다. Django 자동 테스트는 별도의 일회용 테스트 DB를 사용했다. 검증 후 격리 서비스만 중지했고 검증 볼륨은 유지했다.
 
 ## 실행 명령과 결과
